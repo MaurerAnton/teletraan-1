@@ -368,6 +368,27 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
 
 <script>
 // ═══════════════════════════════════════════════
+// GLOBAL ERROR HANDLER — must be first to catch TDZ/init errors
+// ═══════════════════════════════════════════════
+window.addEventListener('error', function(e) {
+  var msg = e.message || String(e);
+  var loc = (e.filename || '').split('/').pop();
+  var line = e.lineno || '?';
+  var html = '<div style="color:#e23e57;font-family:monospace;padding:12px;font-size:13px;position:fixed;bottom:0;left:0;right:0;background:#1a1a2a;border-top:2px solid #e23e57;z-index:9999;max-height:40vh;overflow-y:auto">'
+    + '<b style="color:#4dc9f6">JS ERROR:</b> ' + msg + '<br>'
+    + '<span style="color:#95a5a6">at ' + loc + ':' + line + '</span><br>'
+    + '<span style="color:#95a5a6;font-size:11px">Try: F12 → Console for details. Or clear localStorage (F12 → Storage → Clear), then reload.</span>'
+    + '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+});
+window.addEventListener('unhandledrejection', function(e) {
+  var msg = (e.reason && e.reason.message) || String(e.reason || e);
+  var html = '<div style="color:#e23e57;font-family:monospace;padding:8px;font-size:12px;position:fixed;bottom:0;left:0;right:0;background:#1a1a2a;border-top:1px solid #e23e57;z-index:9999">'
+    + '<b style="color:#4dc9f6">PROMISE REJECTION:</b> ' + msg + '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+});
+
+// ═══════════════════════════════════════════════
 // TELETRAAN-1 — Agora Desktop Web Bridge
 // Tomogichi <-> LLM communication hub
 // ═══════════════════════════════════════════════
@@ -391,23 +412,31 @@ const PRESETS = {
   'custom':         {provider:'custom',         endpoint:'',                          model:'',                 thinkingEnabled:false}
 };
 
-let cfg = loadConfig();
-let ttsEnabled = false, isSpeaking = false;
-let recognition = null, isRecording = false;
-let bridgeHandle = null;
-let bridgeMode = 'none';
-let bridgePollInterval = null;
-let activeMemory = loadActiveMemory();
-let conversations = loadConversations();        // [{id, title, messages, createdAt, updatedAt, pinnedMsgs}]
-let currentConvId = localStorage.getItem('teletraan-current-conv') || null;
-let conversationMessages = [];                   // alias for current conversation's messages
-let memoryFiles = loadMemoryFiles();
-let currentAbortController = null;
-let isGenerating = false;
-let lastEmergencyHash = '';
-let sessionTokenCount = 0;
-let currentAudio = null;
-let lastResponseTime = 0;
+// State variables — using var (not let) to avoid TDZ errors that break all buttons.
+// var is hoisted and initialized to undefined; let in TDZ throws ReferenceError.
+// Safe initializers with try/catch fallbacks.
+var cfg;
+try { cfg = loadConfig(); } catch(e) { console.error('loadConfig failed:', e); cfg = {...DEFAULTS}; }
+var ttsEnabled = false, isSpeaking = false;
+var recognition = null, isRecording = false;
+var bridgeHandle = null;
+var bridgeMode = 'none';
+var bridgePollInterval = null;
+var activeMemory;
+try { activeMemory = loadActiveMemory(); } catch(e) { console.error('loadActiveMemory failed:', e); activeMemory = ''; }
+var conversations;
+try { conversations = loadConversations(); } catch(e) { console.error('loadConversations failed:', e); conversations = []; }
+var currentConvId;
+try { currentConvId = localStorage.getItem('teletraan-current-conv') || null; } catch(e) { console.error('currentConvId failed:', e); currentConvId = null; }
+var conversationMessages = [];
+var memoryFiles;
+try { memoryFiles = loadMemoryFiles(); } catch(e) { console.error('loadMemoryFiles failed:', e); memoryFiles = {}; }
+var currentAbortController = null;
+var isGenerating = false;
+var lastEmergencyHash = '';
+var sessionTokenCount = 0;
+var currentAudio = null;
+var lastResponseTime = 0;
 
 // ── Multi-conversation schema ──
 function loadConversations() {
@@ -594,7 +623,7 @@ function saveMemoryFiles() {
   try { localStorage.setItem('teletraan-memory-files', JSON.stringify(memoryFiles)); } catch(e){}
 }
 function loadActiveMemory() {
-  return localStorage.getItem('teletraan-active-memory') || '';
+  try { return localStorage.getItem('teletraan-active-memory') || ''; } catch(e) { return ''; }
 }
 function saveActiveMemory() {
   try { localStorage.setItem('teletraan-active-memory', activeMemory); } catch(e){}
@@ -2355,14 +2384,7 @@ function updateFsButton() {
 // INIT — wrapped in try/catch to surface errors
 // ═══════════════════════════════════════════════
 
-// Global error handler — catches uncaught errors and shows them in terminal
-window.addEventListener('error', function(e) {
-  const msg = e.message + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '');
-  try { addMessage('error', 'JS Error: ' + msg); } catch(e2) {
-    // If addMessage itself fails, show in document body
-    document.body.innerHTML += '<div style="color:red;font-family:monospace;padding:10px;">JS Error: ' + msg + '</div>';
-  }
-});
+// (Global error handler is at the top of the script — line ~373)
 
 function init() {
   try {
