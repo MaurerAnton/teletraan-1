@@ -497,7 +497,8 @@ function deleteConversation(id) {
 function renderConversationList() {
   const list = document.getElementById('conv-list');
   if (!list) return;
-  const search = (document.getElementById('conv-search')?.value || '').toLowerCase();
+  var searchEl = document.getElementById('conv-search');
+  var search = searchEl ? (searchEl.value || '').toLowerCase() : '';
   list.innerHTML = '';
   const filtered = conversations.filter(c => {
     if (!search) return true;
@@ -579,7 +580,7 @@ function loadConversation() {
   try { const raw = localStorage.getItem('teletraan-conversation'); if (raw) return JSON.parse(raw).slice(-40); } catch(e){}
   return [];
 }
-// Shim: save current conversationMessages back to the current conversation
+// Sync current conversationMessages back to the current conversation, then persist
 function saveConversation() {
   const cur = getCurrentConversation();
   if (cur) { cur.messages = conversationMessages.slice(-40); cur.updatedAt = Date.now(); }
@@ -1019,14 +1020,16 @@ async function importData(file) {
     if (data.activeMemory) { activeMemory = data.activeMemory; saveActiveMemory(); }
     saveConversations();
     renderConversationList();
-    addMessage('system', 'Imported ' + (data.conversations?.length || 0) + ' conversations.');
+    addMessage('system', 'Imported ' + ((data.conversations || []).length) + ' conversations.');
   } catch(e) {
     addMessage('error', 'Import failed: ' + e.message);
   }
 }
 
 // Internal send (used by regenerate) — doesn't read from input field
+// Shared send helper — used by sendMessage (from input) and regenerateLast
 async function sendMessageInternal(text) {
+  if (isGenerating) return;  // re-entry guard
   isGenerating = true;
   const btn = document.getElementById('btn-send');
   btn.classList.add('stopping');
@@ -1038,6 +1041,8 @@ async function sendMessageInternal(text) {
     await sendToLLM(text, false);
     lastResponseTime = ((Date.now() - t0) / 1000).toFixed(1);
     updateConnHealth();
+    const conv = getCurrentConversation();
+    if (conv) autoGenerateTitle(conv);
     document.getElementById('status-text').textContent = 'ONLINE';
     document.getElementById('dot-status').className = 'dot green';
   } catch(err) {
@@ -1045,10 +1050,11 @@ async function sendMessageInternal(text) {
     else addMessage('error', err.message);
     document.getElementById('status-text').textContent = 'ONLINE';
     document.getElementById('dot-status').className = 'dot green';
+  } finally {
+    isGenerating = false;
+    btn.classList.remove('stopping');
+    btn.textContent = 'SEND';
   }
-  isGenerating = false;
-  btn.classList.remove('stopping');
-  btn.textContent = 'SEND';
 }
 
 function updateConnHealth() {
@@ -1239,7 +1245,7 @@ async function readCommandResults() {
 }
 
 async function enqueueCommand(action, payload) {
-  const id = 'cmd_' + Date.now();
+  const id = 'cmd_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   const cmd = JSON.stringify({id, ts: new Date().toISOString().replace('T',' ').substring(0,19), action, payload});
   await appendBridgeFile('agora-commands.jsonl', cmd);
   return id;
@@ -1321,6 +1327,7 @@ async function executeTool(name, argsStr) {
   if (name === 'update_active_memory') {
     const content = args.content || '';
     const mode = args.mode || 'replace';
+    if (!activeMemory) activeMemory = '';  // guard against null/undefined
     if (mode === 'replace') activeMemory = content;
     else if (mode === 'append') activeMemory += '\n' + content;
     else if (mode === 'prepend') activeMemory = content + '\n' + activeMemory;
@@ -1563,8 +1570,8 @@ function mergeToolCallDelta(existing, delta) {
   }
   if (delta.function) {
     if (!existing.function) existing.function = {name:'', arguments:''};
-    if (delta.function.name) existing.function.name += delta.function.name;
-    if (delta.function.arguments) existing.function.arguments += delta.function.arguments;
+    if (delta.function.name) existing.function.name = delta.function.name;  // name arrives once, not fragmented
+    if (delta.function.arguments) existing.function.arguments += delta.function.arguments;  // args DO arrive in fragments
   }
   if (delta.id && !existing.id) existing.id = delta.id;
   if (delta.type && !existing.type) existing.type = delta.type;
@@ -1674,11 +1681,17 @@ async function sendToLLM(userMessage, isEmergency) {
   const ui = createStreamingMessage();
   let reasoningText = '', contentText = '';
 
-  const msg = await streamChat(messages, tools, {
-    onReasoning: function(delta) { reasoningText += delta; ui.updateReasoning(reasoningText); },
-    onContent: function(delta) { contentText += delta; ui.updateContent(contentText); },
-    onToolCalls: function(tcs) {}
-  });
+  var msg;
+  try {
+    msg = await streamChat(messages, tools, {
+      onReasoning: function(delta) { reasoningText += delta; ui.updateReasoning(reasoningText); },
+      onContent: function(delta) { contentText += delta; ui.updateContent(contentText); },
+      onToolCalls: function(tcs) {}
+    });
+  } catch(e) {
+    ui.finalize(0);  // cursor leak fix
+    throw e;
+  }
 
   const tokens = Math.ceil((reasoningText.length + contentText.length) / 4);
   sessionTokenCount += tokens;
@@ -1702,7 +1715,7 @@ async function sendToLLM(userMessage, isEmergency) {
       conversationMessages.push({role:'tool', tool_call_id: tc.id, content: result});
     }
 
-    saveConversation() // DEPRECATED - replace with saveConversations();
+    saveConversation();
     return await continueWithToolResults(isEmergency, 1);
   }
 
@@ -1711,7 +1724,7 @@ async function sendToLLM(userMessage, isEmergency) {
   if (!content.trim()) throw new Error('No response. Retry.');
   conversationMessages.push({role:'assistant', content: content});
   if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
-  saveConversation() // DEPRECATED - replace with saveConversations();
+  saveConversation();
 
   if (ttsEnabled) ttsSpeak(content);
   return content;
@@ -1721,7 +1734,7 @@ async function continueWithToolResults(isEmergency, depth) {
   depth = depth || 1;
   if (depth >= 5) {
     conversationMessages.push({role:'assistant', content:'(Too many tool call rounds. Stopping.)'});
-    saveConversation() // DEPRECATED - replace with saveConversations();
+    saveConversation();
     return 'Multiple tool iterations complete. Ask the user for further direction.';
   }
 
@@ -1736,11 +1749,17 @@ async function continueWithToolResults(isEmergency, depth) {
   const ui = createStreamingMessage();
   let reasoningText = '', contentText = '';
 
-  const msg = await streamChat(messages, tools, {
-    onReasoning: function(delta) { reasoningText += delta; ui.updateReasoning(reasoningText); },
-    onContent: function(delta) { contentText += delta; ui.updateContent(contentText); },
-    onToolCalls: function(tcs) {}
-  });
+  var msg;
+  try {
+    msg = await streamChat(messages, tools, {
+      onReasoning: function(delta) { reasoningText += delta; ui.updateReasoning(reasoningText); },
+      onContent: function(delta) { contentText += delta; ui.updateContent(contentText); },
+      onToolCalls: function(tcs) {}
+    });
+  } catch(e) {
+    ui.finalize(0);  // cursor leak fix
+    throw e;
+  }
 
   const tokens = Math.ceil((reasoningText.length + contentText.length) / 4);
   sessionTokenCount += tokens;
@@ -1761,7 +1780,7 @@ async function continueWithToolResults(isEmergency, depth) {
       updateToolCard(fn.name, result);
       conversationMessages.push({role:'tool', tool_call_id: tc.id, content: result});
     }
-    saveConversation() // DEPRECATED - replace with saveConversations();
+    saveConversation();
     return await continueWithToolResults(isEmergency, depth + 1);
   }
 
@@ -1769,7 +1788,7 @@ async function continueWithToolResults(isEmergency, depth) {
   if (!content.trim()) throw new Error('No response. Retry.');
   conversationMessages.push({role:'assistant', content: content});
   if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
-  saveConversation() // DEPRECATED - replace with saveConversations();
+  saveConversation();
 
   if (ttsEnabled) ttsSpeak(content);
   return content;
@@ -1947,8 +1966,8 @@ async function fetchWeather(lat, lon) {
       valid:true,
       temp_max: d.temperature_2m_max[0],
       temp_min: d.temperature_2m_min[0],
-      precip_prob: (d.precipitation_probability_max?.[0]||0) / 100,
-      wind_max: d.wind_speed_10m_max?.[0]||0,
+      precip_prob: ((d.precipitation_probability_max || [])[0] || 0) / 100,
+      wind_max: (d.wind_speed_10m_max || [])[0] || 0,
       summary: '', clothing_hint: ''
     };
     w.summary = 'max '+Math.round(w.temp_max)+'°C, min '+Math.round(w.temp_min)+'°C, '+Math.round(w.precip_prob*100)+'% rain, wind '+Math.round(w.wind_max)+'km/h';
@@ -1996,41 +2015,9 @@ async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
   input.value = ''; input.style.height = 'auto';
-
   addMessage('user', text);
-  isGenerating = true;
-  const btn = document.getElementById('btn-send');
-  btn.classList.add('stopping');
-  btn.textContent = 'STOP';
-  document.getElementById('status-text').textContent = 'PROCESSING...';
-  document.getElementById('dot-status').className = 'dot red';
-
-  // AI response is rendered inside sendToLLM via createStreamingMessage() — no addMessage('ai') here.
-  try {
-    const t0 = Date.now();
-    await sendToLLM(text, false);
-    lastResponseTime = ((Date.now() - t0) / 1000).toFixed(1);
-    updateConnHealth();
-    // Auto-generate title after first exchange
-    const conv = getCurrentConversation();
-    if (conv) autoGenerateTitle(conv);
-    document.getElementById('status-text').textContent = 'ONLINE';
-    document.getElementById('dot-status').className = 'dot green';
-  } catch(err) {
-    if (err.name === 'AbortError') {
-      addMessage('system','(aborted)');
-    } else {
-      addMessage('error', err.message);
-    }
-    document.getElementById('status-text').textContent = 'ONLINE';
-    document.getElementById('dot-status').className = 'dot green';
-  } finally {
-    // ALWAYS reset isGenerating, even if something unexpected throws
-    isGenerating = false;
-    btn.classList.remove('stopping');
-    btn.textContent = 'SEND';
-    input.focus();
-  }
+  await sendMessageInternal(text);
+  document.getElementById('msg-input').focus();
 }
 
 // ═══════════════════════════════════════════════
@@ -2073,7 +2060,8 @@ function checkTtsAvailable() {
     return {ok: true, reason: ''};
   }
   if (cfg.ttsProvider === 'piper') {
-    if (bridgeMode === 'none') return {ok: false, reason: 'Bridge not connected (Piper needs bridge as CORS proxy)'};
+    // Piper needs the HTTP bridge proxy (CORS), not FSA direct file access
+    if (bridgeMode !== 'server') return {ok: false, reason: 'Bridge not connected in server mode (Piper needs bridge as CORS proxy)'};
     return {ok: true, reason: ''};
   }
   if (cfg.ttsProvider === 'custom') {
@@ -2291,19 +2279,21 @@ function toggleConfig() {
 // KEYBOARD SHORTCUTS
 // ═══════════════════════════════════════════════
 document.addEventListener('keydown', (e) => {
-  // Escape: priority order — fullscreen → panels → blur input
+  // Escape: close all panels + exit fullscreen in one press
   if (e.key==='Escape') {
+    var closedSomething = false;
+    var cfgO = document.getElementById('config-overlay');
+    if (cfgO && cfgO.classList.contains('open')) { cfgO.classList.remove('open'); closedSomething = true; }
+    var pd = document.getElementById('pinned-drawer'); if (pd) { pd.classList.remove('open'); closedSomething = true; }
+    var mp = document.getElementById('memory-panel'); if (mp) { mp.classList.remove('open'); closedSomething = true; }
+    document.getElementById('msg-input').blur();
+    // Also exit fullscreen (whether or not panels were open)
     if (document.fullscreenElement || document.webkitFullscreenElement) {
-      // Exit fullscreen first if active
-      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      var exit = document.exitFullscreen || document.webkitExitFullscreen;
       if (exit) exit.call(document);
-    } else {
-      // Close any open panels
-      document.getElementById('config-overlay').classList.remove('open');
-      document.getElementById('pinned-drawer')?.classList.remove('open');
-      document.getElementById('memory-panel')?.classList.remove('open');
-      document.getElementById('msg-input').blur();
+      closedSomething = true;
     }
+    // If nothing was open, Esc does nothing special (default browser behavior)
   }
   // F11 — toggle fullscreen (intercept browser F11 where possible)
   if (e.key==='F11') { e.preventDefault(); toggleFullscreen(); }
@@ -2311,7 +2301,6 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey||e.metaKey)&&e.key==='l') { e.preventDefault(); clearTerminal(); }
   if ((e.ctrlKey||e.metaKey)&&e.key==='Enter') { e.preventDefault(); sendMessage(); }
   if ((e.ctrlKey||e.metaKey)&&e.key==='b') { e.preventDefault(); runMorningBrief(); }
-  if ((e.ctrlKey||e.metaKey)&&e.key==='f') { e.preventDefault(); toggleFullscreen(); }
 });
 document.getElementById('msg-input').addEventListener('keydown', (e) => {
   if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -2330,7 +2319,7 @@ function toggleFullscreen() {
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
     // Enter fullscreen
     const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if (req) {
       req.call(el).then(() => {
         if (btn) { btn.textContent = '⛶ EXIT FS'; btn.classList.add('on'); }
@@ -2343,7 +2332,7 @@ function toggleFullscreen() {
     }
   } else {
     // Exit fullscreen
-    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
     if (exit) exit.call(document);
     if (btn) { btn.textContent = '⛶ FULLSCREEN'; btn.classList.remove('on'); }
   }
@@ -2427,7 +2416,7 @@ function init() {
     // Restore current conversation messages (silent = no typewriter animation, no TTS)
     if (conversationMessages.length > 0) {
       const conv = getCurrentConversation();
-      addMessage('system','Restored '+conversationMessages.length+' messages from: '+(conv?.title||'conversation'));
+      addMessage('system','Restored '+conversationMessages.length+' messages from: '+((conv && conv.title) || 'conversation'));
       for (const m of conversationMessages) {
         if (m.role === 'user') addMessage('user', m.content, true);
         else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);

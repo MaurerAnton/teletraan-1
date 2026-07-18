@@ -127,8 +127,8 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode())
             return
 
-        self.send_cors(404)
-        self.wfile.write(b"unknown endpoint")
+        self.send_cors(404, "application/json")
+        self.wfile.write(json.dumps({"error": "unknown endpoint"}).encode())
 
     def do_POST(self):
         if not self.check_auth():
@@ -147,6 +147,11 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 self.send_cors(503, "application/json")
                 self.wfile.write(json.dumps({"error": "TTS proxy disabled (start bridge with --tts-url http://localhost:5000)"}).encode())
                 return
+            # Body size limit (10MB) — prevents DoS via huge POST
+            if len(body) > 10_000_000:
+                self.send_cors(413, "application/json")
+                self.wfile.write(json.dumps({"error": "Request body too large (max 10MB)"}).encode())
+                return
             try:
                 target_url = self.tts_url.rstrip("/") + "/synthesize"
                 req = urllib.request.Request(
@@ -158,6 +163,11 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     audio_data = resp.read()
                     content_type = resp.headers.get("Content-Type", "audio/wav")
+                    # Don't forward error responses as audio — return JSON error instead
+                    if content_type.startswith("application/json") or content_type.startswith("text/"):
+                        self.send_cors(502, "application/json")
+                        self.wfile.write(json.dumps({"error": "Piper returned non-audio: " + audio_data.decode("utf-8", errors="replace")[:200]}).encode())
+                        return
                 # Send response with explicit Content-Length (audio can be large)
                 self.send_response(200)
                 self.send_header("Access-Control-Allow-Origin", "*")
@@ -168,6 +178,11 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(audio_data)
                 print(f"[bridge] TTS proxy: {len(audio_data)} bytes from {target_url}", file=sys.stderr)
+            except urllib.error.HTTPError as e:
+                # Piper returned an HTTP error (400/500) — forward as JSON, not audio
+                err_body = e.read().decode("utf-8", errors="replace")[:200] if e.fp else ""
+                self.send_cors(502, "application/json")
+                self.wfile.write(json.dumps({"error": f"Piper HTTP {e.code}: {err_body}"}).encode())
             except urllib.error.URLError as e:
                 self.send_cors(502, "application/json")
                 self.wfile.write(json.dumps({"error": f"TTS server unreachable: {e.reason}"}).encode())
@@ -211,25 +226,8 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(str(e).encode())
             return
 
-        if path == "/tts":
-            try:
-                piper_req = urllib.request.Request(
-                    "http://localhost:5000/synthesize",
-                    data=json.dumps({"text": body}).encode(),
-                    headers={"Content-Type": "application/json"},
-                )
-                with urllib.request.urlopen(piper_req, timeout=30) as resp:
-                    wav_data = resp.read()
-                self.send_cors(200, "audio/wav")
-                self.wfile.write(wav_data)
-                print(f"[bridge] TTS synthesized ({len(wav_data)} bytes)", file=sys.stderr)
-            except Exception as e:
-                self.send_cors(502, "application/json")
-                self.wfile.write(json.dumps({"error": f"Piper TTS failed: {e}"}).encode())
-            return
-
-        self.send_cors(404)
-        self.wfile.write(b"unknown endpoint")
+        self.send_cors(404, "application/json")
+        self.wfile.write(json.dumps({"error": "unknown endpoint"}).encode())
 
     def _list_files(self):
         """Return list of bridge files with sizes."""
