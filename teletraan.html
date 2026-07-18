@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teletraan-1 · Agora Bridge</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-dark:#0a0a1a;--bg-mid:#0d0d24;--blue:#4dc9f6;--green:#2ecc71;
+  --red:#e23e57;--purple:#9b59b6;--grey:#95a5a6;--border:#1a1a3a;
+  --txt:#4dc9f6;
+}
+html,body{height:100%;width:100%;overflow:hidden;
+  font-family:'Courier New','Lucida Console','Liberation Mono','DejaVu Sans Mono',monospace;
+  background:var(--bg-dark);color:var(--txt);}
+#bgcanvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.app{position:relative;z-index:1;display:flex;height:100%;width:100%}
+
+#sidebar{width:240px;min-width:240px;background:var(--bg-mid);border-right:2px solid var(--border);
+  display:flex;flex-direction:column;padding:16px 12px;gap:12px;z-index:2;transition:transform .25s}
+.sidebar-header{text-align:center;border-bottom:1px solid var(--border);padding-bottom:10px}
+.sidebar-header h1{font-size:1.1em;letter-spacing:3px;color:var(--blue);text-shadow:0 0 10px var(--blue),0 0 20px var(--blue)}
+.sidebar-header .subtitle{font-size:.6em;color:var(--grey);margin-top:2px}
+.status-block{border:1px solid var(--border);padding:10px;border-radius:4px}
+.status-row{display:flex;justify-content:space-between;align-items:center;font-size:.72em;padding:3px 0}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.dot.green{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dot.red{background:var(--red);box-shadow:0 0 6px var(--red)}
+.dot.grey{background:var(--grey)}
+.clock{text-align:center;font-size:.85em;color:var(--blue);text-shadow:0 0 6px var(--blue)}
+.sidebar-buttons{display:flex;flex-direction:column;gap:8px;margin-top:auto}
+.btn-side{background:transparent;border:1px solid var(--border);color:var(--blue);padding:8px;
+  font-family:inherit;font-size:.7em;letter-spacing:2px;cursor:pointer;transition:all .2s;text-transform:uppercase;border-radius:3px}
+.btn-side:hover{border-color:var(--blue);box-shadow:0 0 12px var(--blue);text-shadow:0 0 8px var(--blue)}
+.btn-side.danger{color:var(--red)}
+.btn-side.danger:hover{border-color:var(--red);box-shadow:0 0 12px var(--red)}
+.btn-side.on{color:var(--green);border-color:var(--green);box-shadow:0 0 8px var(--green)}
+
+#main{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+#terminal{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth}
+#terminal::-webkit-scrollbar{width:4px}
+#terminal::-webkit-scrollbar-track{background:transparent}
+#terminal::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.msg{font-size:.78em;line-height:1.55;white-space:pre-wrap;word-break:break-word;animation:fadeSlide .25s}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-system{color:var(--grey)}
+.msg-user{color:var(--blue);text-shadow:0 0 4px var(--blue)}
+.msg-ai{color:var(--green);text-shadow:0 0 4px var(--green)}
+.msg-error{color:var(--red);text-shadow:0 0 4px var(--red)}
+.msg-incoming{color:var(--purple);text-shadow:0 0 4px var(--purple)}
+.msg-tool{color:var(--purple);font-size:.7em;opacity:.8;border-left:2px solid var(--purple);padding-left:8px;margin:2px 0}
+
+#input-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:2px solid var(--border);background:var(--bg-mid)}
+#input-bar button{background:transparent;border:1px solid var(--border);color:var(--grey);font-size:1.1em;
+  width:38px;height:38px;border-radius:4px;cursor:pointer;transition:all .2s;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+#input-bar button:hover:not(:disabled){border-color:var(--blue);color:var(--blue);box-shadow:0 0 10px var(--blue)}
+#input-bar button:disabled{opacity:.4;cursor:not-allowed}
+#input-bar button.recording{color:var(--red);border-color:var(--red);box-shadow:0 0 12px var(--red)}
+#input-bar button.tts-on{color:var(--blue);border-color:var(--blue);box-shadow:0 0 10px var(--blue)}
+#input-bar button.tts-speaking{animation:pulseBtn .6s infinite}
+@keyframes pulseBtn{0%,100%{box-shadow:0 0 6px var(--blue)}50%{box-shadow:0 0 20px var(--blue),0 0 30px var(--blue)}}
+#msg-input{flex:1;background:transparent;border:1px solid var(--border);color:var(--blue);font-family:inherit;
+  font-size:.78em;padding:10px 12px;resize:none;min-height:40px;max-height:120px;outline:none;border-radius:4px}
+#msg-input:focus{border-color:var(--blue);box-shadow:0 0 8px rgba(77,201,246,.25)}
+#msg-input::placeholder{color:var(--grey);opacity:.5}
+
+#config-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:20;
+  display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+#config-overlay.open{opacity:1;pointer-events:all}
+#config-panel{background:var(--bg-mid);border:2px solid var(--border);border-radius:6px;
+  width:90%;max-width:560px;max-height:85vh;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
+#config-panel h2{text-align:center;letter-spacing:3px;color:var(--blue);text-shadow:0 0 8px var(--blue);font-size:1em;border-bottom:1px solid var(--border);padding-bottom:8px}
+#config-panel label{font-size:.68em;color:var(--grey);letter-spacing:1px;display:flex;flex-direction:column;gap:4px}
+#config-panel input,#config-panel select,#config-panel textarea{background:var(--bg-dark);border:1px solid var(--border);
+  color:var(--blue);font-family:inherit;font-size:.72em;padding:6px 8px;border-radius:3px;outline:none}
+#config-panel input:focus,#config-panel select:focus,#config-panel textarea:focus{border-color:var(--blue)}
+#config-panel textarea{resize:vertical;min-height:80px}
+#config-panel .config-buttons{display:flex;gap:8px;flex-wrap:wrap}
+#config-panel .config-buttons button{flex:1;min-width:90px;padding:8px;font-family:inherit;font-size:.7em;letter-spacing:2px;
+  background:transparent;border:1px solid var(--border);color:var(--blue);cursor:pointer;text-transform:uppercase;transition:all .2s;border-radius:3px}
+#config-panel .config-buttons button:hover{border-color:var(--blue);box-shadow:0 0 10px var(--blue)}
+#config-panel .bridge-status{font-size:.65em;padding:6px 8px;border-radius:3px;text-align:center;letter-spacing:1px}
+#config-panel .bridge-status.active{background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)}
+#config-panel .bridge-status.inactive{background:rgba(226,62,87,.15);color:var(--red);border:1px solid rgba(226,62,87,.3)}
+.row-chk{flex-direction:row!important;align-items:center;gap:8px}
+.row-chk input[type=checkbox]{width:auto}
+
+@media(max-width:1024px){.app{flex-direction:column}
+  #sidebar{width:100%;min-width:0;flex-direction:row;flex-wrap:wrap;gap:8px;padding:8px 10px;border-right:none;border-bottom:2px solid var(--border);align-items:center;justify-content:space-between}
+  .sidebar-header{border-bottom:none;padding-bottom:0}.sidebar-header h1{font-size:.85em;letter-spacing:2px}.sidebar-header .subtitle{display:none}
+  .status-block{display:flex;gap:10px;border:none;padding:0}.sidebar-buttons{flex-direction:row;margin-top:0}.btn-side{padding:5px 10px;font-size:.6em}.clock{font-size:.7em}}
+@media(max-width:768px){#sidebar{padding:4px 6px;gap:4px}.sidebar-header h1{font-size:.75em}.status-block{font-size:.6em;gap:6px}
+  .btn-side{font-size:.55em;padding:4px 7px;letter-spacing:1px}.clock{font-size:.6em}#input-bar button{width:34px;height:34px;font-size:1em}
+  #msg-input{font-size:.72em;padding:8px}#config-panel{width:96%;max-height:92vh;padding:12px}}
+</style>
+</head>
+<body>
+<canvas id="bgcanvas"></canvas>
+<div class="app">
+  <div id="sidebar">
+    <div class="sidebar-header"><h1>TELETRAAN-1</h1><div class="subtitle">AGORA BRIDGE // TOMOGICHI SYNC</div></div>
+    <div class="status-block">
+      <div class="status-row"><span><span class="dot green" id="dot-status"></span>STATUS</span><span id="status-text">ONLINE</span></div>
+      <div class="status-row"><span>MODEL</span><span id="status-model">-</span></div>
+      <div class="status-row"><span>BRIDGE</span><span id="status-bridge" style="color:var(--grey)">--</span></div>
+    </div>
+    <div class="clock" id="clock">--</div>
+    <div class="status-block">
+      <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROTOCOLS</div>
+      <div class="status-row"><span><span class="dot grey" id="dot-stt"></span>STT</span><span id="proto-stt">--</span></div>
+      <div class="status-row"><span><span class="dot green" id="dot-llm"></span>LLM</span><span id="proto-llm">READY</span></div>
+      <div class="status-row"><span><span class="dot grey" id="dot-tts"></span>TTS</span><span id="proto-tts">--</span></div>
+      <div class="status-row"><span><span class="dot grey" id="dot-bridge"></span>SYNC</span><span id="proto-bridge">--</span></div>
+    </div>
+    <div class="sidebar-buttons">
+      <button class="btn-side" onclick="runMorningBrief()" title="Generate morning brief">BRIEF</button>
+      <button class="btn-side danger" onclick="clearTerminal()">CLEAR</button>
+      <button class="btn-side" onclick="toggleConfig()">CONFIG</button>
+    </div>
+  </div>
+  <div id="main">
+    <div id="terminal"></div>
+    <div id="input-bar">
+      <button id="btn-mic" onclick="toggleMic()" title="Voice input">🎤</button>
+      <textarea id="msg-input" rows="1" placeholder="Enter command..."></textarea>
+      <button id="btn-send" onclick="sendMessage()">SEND</button>
+      <button id="btn-tts" onclick="toggleTTS()" title="Toggle speech output">🔊</button>
+    </div>
+  </div>
+</div>
+<div id="config-overlay">
+  <div id="config-panel">
+    <h2>CONFIGURATION</h2>
+    <label>LLM Endpoint (llama.cpp server)
+      <input type="text" id="cfg-endpoint" placeholder="http://localhost:8080/v1">
+    </label>
+    <label>LLM Model
+      <input type="text" id="cfg-model" placeholder="llama-3.2-3b">
+    </label>
+    <label>API Key (if needed)
+      <input type="text" id="cfg-apikey" placeholder="sk-... or leave empty">
+    </label>
+
+    <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+      <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:8px">TOMOGICHI BRIDGE</div>
+      <div class="bridge-status inactive" id="bridge-status-msg">BRIDGE NOT CONNECTED — select Tomogichi data directory</div>
+    </div>
+    <label>Tomogichi Data Directory
+      <div style="display:flex;gap:8px">
+        <input type="text" id="cfg-bridge-dir" placeholder="~/.local/share/tomogichi-qt/" style="flex:1">
+        <button onclick="selectBridgeDir()" style="background:transparent;border:1px solid var(--border);color:var(--blue);
+          font-family:inherit;font-size:.7em;padding:4px 10px;cursor:pointer;white-space:nowrap;border-radius:3px">SELECT</button>
+      </div>
+    </label>
+    <label>Bridge Server URL (Firefox mode)
+      <input type="text" id="cfg-bridge-server" placeholder="http://localhost:9191">
+    </label>
+
+    <label>STT Provider
+      <select id="cfg-stt-provider"><option value="web-speech">Web Speech</option><option value="whisper-cpp">whisper.cpp</option><option value="custom">Custom</option></select>
+    </label>
+    <label>STT Endpoint <input type="text" id="cfg-stt-endpoint"></label>
+    <label>TTS Provider
+      <select id="cfg-tts-provider"><option value="web-speech">Web Speech</option><option value="piper">Piper</option><option value="custom">Custom</option></select>
+    </label>
+    <label>TTS Endpoint <input type="text" id="cfg-tts-endpoint"></label>
+    <label>TTS Voice <input type="text" id="cfg-tts-voice" placeholder="default"></label>
+
+    <label>System Prompt (use {'{'}tomogichi{'}'} for state, {'{'}emergency{'}'} for flag, {'{'}date{'}'}/{'{'}time{'}'} for now)
+      <textarea id="cfg-system-prompt" rows="6"></textarea>
+    </label>
+
+    <label class="row-chk"><span>Tools: Memory</span><input type="checkbox" id="cfg-mem-tools" checked></label>
+    <label class="row-chk"><span>Weather connector</span><input type="checkbox" id="cfg-weather-enabled"></label>
+    <label>Latitude <input type="text" id="cfg-weather-lat" placeholder="52.52"></label>
+    <label>Longitude <input type="text" id="cfg-weather-lon" placeholder="13.41"></label>
+    <label>City name <input type="text" id="cfg-weather-city" placeholder="Berlin"></label>
+
+    <div class="config-buttons">
+      <button onclick="applyConfig()">APPLY</button>
+      <button onclick="resetConfig()">RESET DEFAULTS</button>
+      <button onclick="toggleConfig()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// TELETRAAN-1 — Agora Desktop Web Bridge
+// Tomogichi <-> LLM communication hub
+// ═══════════════════════════════════════════════
+
+const DEFAULTS = {
+  endpoint:'http://localhost:8080/v1', model:'', apikey:'', bridgeServer:'http://localhost:9191',
+  sttProvider:'web-speech', sttEndpoint:'',
+  ttsProvider:'web-speech', ttsEndpoint:'', ttsVoice:'default',
+  systemPrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+  memTools:true, weatherEnabled:false, weatherLat:'52.52', weatherLon:'13.41', weatherCity:'Berlin'
+};
+
+let cfg = loadConfig();
+let ttsEnabled = false, isSpeaking = false;
+let currentAudio = null;
+let recognition = null, isRecording = false;
+let bridgeHandle = null; // FileSystemDirectoryHandle (Chrome) or null (Firefox)
+let bridgeMode = 'none'; // 'fsa' = File System Access (Chrome), 'server' = local bridge server (Firefox), 'none' = not connected
+let bridgePollInterval = null;
+let activeMemory = '';
+
+function loadConfig() {
+  try { const raw = localStorage.getItem('teletraan-config'); if (raw) return {...DEFAULTS,...JSON.parse(raw)}; } catch(e){}
+  return {...DEFAULTS};
+}
+function saveConfig() { localStorage.setItem('teletraan-config', JSON.stringify(cfg)); }
+
+function applyConfig() {
+  cfg.endpoint = document.getElementById('cfg-endpoint').value.trim() || DEFAULTS.endpoint;
+  cfg.model = document.getElementById('cfg-model').value.trim() || DEFAULTS.model;
+  cfg.apikey = document.getElementById('cfg-apikey').value.trim() || '';
+  cfg.bridgeServer = document.getElementById('cfg-bridge-server').value.trim() || 'http://localhost:9191';
+  cfg.sttProvider = document.getElementById('cfg-stt-provider').value;
+  cfg.sttEndpoint = document.getElementById('cfg-stt-endpoint').value.trim();
+  cfg.ttsProvider = document.getElementById('cfg-tts-provider').value;
+  cfg.ttsEndpoint = document.getElementById('cfg-tts-endpoint').value.trim();
+  cfg.ttsVoice = document.getElementById('cfg-tts-voice').value.trim() || 'default';
+  cfg.systemPrompt = document.getElementById('cfg-system-prompt').value.trim() || DEFAULTS.systemPrompt;
+  cfg.memTools = document.getElementById('cfg-mem-tools').checked;
+  cfg.weatherEnabled = document.getElementById('cfg-weather-enabled').checked;
+  cfg.weatherLat = document.getElementById('cfg-weather-lat').value.trim() || DEFAULTS.weatherLat;
+  cfg.weatherLon = document.getElementById('cfg-weather-lon').value.trim() || DEFAULTS.weatherLon;
+  cfg.weatherCity = document.getElementById('cfg-weather-city').value.trim() || DEFAULTS.weatherCity;
+  saveConfig();
+  updateStatus();
+  updateProtocols();
+  toggleConfig();
+  addMessage('system','Configuration applied.');
+}
+
+function resetConfig() { cfg = {...DEFAULTS}; saveConfig(); populateConfigFields(); updateStatus(); updateProtocols(); addMessage('system','Configuration reset to defaults.'); }
+
+function populateConfigFields() {
+  document.getElementById('cfg-endpoint').value = cfg.endpoint;
+  document.getElementById('cfg-model').value = cfg.model;
+  document.getElementById('cfg-apikey').value = cfg.apikey;
+  document.getElementById('cfg-bridge-server').value = cfg.bridgeServer;
+  document.getElementById('cfg-stt-provider').value = cfg.sttProvider;
+  document.getElementById('cfg-stt-endpoint').value = cfg.sttEndpoint;
+  document.getElementById('cfg-tts-provider').value = cfg.ttsProvider;
+  document.getElementById('cfg-tts-endpoint').value = cfg.ttsEndpoint;
+  document.getElementById('cfg-tts-voice').value = cfg.ttsVoice;
+  document.getElementById('cfg-system-prompt').value = cfg.systemPrompt;
+  document.getElementById('cfg-mem-tools').checked = cfg.memTools;
+  document.getElementById('cfg-weather-enabled').checked = cfg.weatherEnabled;
+  document.getElementById('cfg-weather-lat').value = cfg.weatherLat;
+  document.getElementById('cfg-weather-lon').value = cfg.weatherLon;
+  document.getElementById('cfg-weather-city').value = cfg.weatherCity;
+}
+
+// ═══════════════════════════════════════════════
+// CANVAS HEX GRID
+// ═══════════════════════════════════════════════
+function initCanvas() {
+  const c = document.getElementById('bgcanvas'), ctx = c.getContext('2d');
+  let W, H;
+  function resize() { W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
+  resize(); window.addEventListener('resize', resize);
+  const hexR = 30, hexH = hexR * Math.sqrt(3);
+  const cols = Math.ceil(W / (hexR * 1.5)) + 2, rows = Math.ceil(H / hexH) + 2;
+  let pulses = [], pulseTimer = 0, pulseInterval = 2000 + Math.random() * 3000;
+  let globalAlpha = 0.12, alphaDir = 1;
+  function spawnPulse() { pulses.push({x:Math.random()*cols, y:Math.random()*rows, life:0, maxLife:40+Math.random()*60}); }
+  function drawHex(ctx, cx, cy, r) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) { const a = Math.PI/3*i - Math.PI/6, x = cx + r*Math.cos(a), y = cy + r*Math.sin(a); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); }
+    ctx.closePath(); ctx.stroke();
+  }
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle = '#1a1a4a'; ctx.lineWidth = 0.5;
+    for (let row = -1; row < rows; row++) for (let col = -1; col < cols; col++) {
+      const cx = col*hexR*1.5, cy = row*hexH + (col%2===0?0:hexH/2);
+      ctx.globalAlpha = globalAlpha; drawHex(ctx,cx,cy,hexR);
+    }
+    ctx.strokeStyle = '#4dc9f6'; ctx.lineWidth = 1.2;
+    for (let i = pulses.length-1; i >= 0; i--) {
+      const p = pulses[i], cx = p.x*hexR*1.5, cy = p.y*hexH + (Math.floor(p.x)%2===0?0:hexH/2);
+      const progress = p.life / p.maxLife;
+      ctx.globalAlpha = progress<.5 ? progress*2*.4 : (1-progress)*2*.4;
+      drawHex(ctx,cx,cy,hexR); p.life++;
+      if (p.life >= p.maxLife) pulses.splice(i,1);
+    }
+    globalAlpha += .0001*alphaDir; if (globalAlpha>.18) alphaDir=-1; if (globalAlpha<.08) alphaDir=1;
+    pulseTimer += 16;
+    if (pulseTimer >= pulseInterval) { pulseTimer=0; pulseInterval=2000+Math.random()*3000; spawnPulse(); }
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ═══════════════════════════════════════════════
+// TERMINAL
+// ═══════════════════════════════════════════════
+function addMessage(type, text) {
+  const term = document.getElementById('terminal');
+  const el = document.createElement('div');
+  el.className = 'msg msg-' + type;
+  let prefix = '';
+  if (type==='user') prefix='> ';
+  if (type==='ai') prefix='TELETRAAN-1: ';
+  if (type==='error') prefix='ERROR: ';
+  if (type==='incoming') prefix='INCOMING: ';
+  if (type==='tool') prefix='[tool] ';
+  if (type==='ai') {
+    el.textContent = prefix; term.appendChild(el); scrollDown();
+    typeText(el, text, 0, () => { if (ttsEnabled) ttsSpeak(text); });
+  } else {
+    el.textContent = prefix + text; term.appendChild(el); scrollDown();
+  }
+}
+function typeText(el, text, idx, cb) {
+  if (idx < text.length) { el.textContent += text.charAt(idx); scrollDown(); setTimeout(()=>typeText(el,text,idx+1,cb), 20+Math.random()*20); }
+  else if (cb) cb();
+}
+function scrollDown() { const t=document.getElementById('terminal'); requestAnimationFrame(()=>{t.scrollTop=t.scrollHeight;}); }
+function clearTerminal() {
+  if (document.getElementById('terminal').childElementCount>0 && confirm('Clear all terminal output?')) {
+    document.getElementById('terminal').innerHTML=''; addMessage('system','Terminal cleared.');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// BRIDGE — dual-mode: File System Access API (Chrome) or local server (Firefox)
+// ═══════════════════════════════════════════════
+
+function hasFSA() { return !!window.showDirectoryPicker; }
+
+async function selectBridgeDir() {
+  if (hasFSA()) {
+    await selectBridgeDirFSA();
+  } else {
+    await selectBridgeDirServer();
+  }
+}
+
+// --- Mode 1: File System Access API (Chrome/Edge/Opera) ---
+async function selectBridgeDirFSA() {
+  try {
+    bridgeHandle = await window.showDirectoryPicker({mode:'readwrite'});
+    bridgeMode = 'fsa';
+    onBridgeConnected(bridgeHandle.name);
+    addMessage('system','Bridge mode: File System Access (direct I/O)');
+    startBridgePolling();
+  } catch(e) {
+    if (e.name !== 'AbortError') addMessage('error','Failed to open directory: ' + e.message);
+  }
+}
+
+// --- Mode 2: Local bridge server (Firefox/LibreWolf/IceCat) ---
+async function selectBridgeDirServer() {
+  const path = prompt(
+    'Firefox does not support direct filesystem access.\n\n' +
+    'Step 1: Run the bridge server:\n' +
+    '  python3 bridge.py /path/to/tomogichi-qt/\n\n' +
+    'Step 2: Enter the directory path below (same as in Step 1):\n\n' +
+    'Directory path:',
+    localStorage.getItem('teletraan-bridge-path') || ''
+  );
+  if (!path || !path.trim()) return;
+
+  localStorage.setItem('teletraan-bridge-path', path.trim());
+  document.getElementById('cfg-bridge-dir').value = path.trim();
+
+  // Test connection to bridge server
+  const serverUrl = cfg.bridgeServer || 'http://localhost:9191';
+  try {
+    const res = await fetch(serverUrl + '/ping');
+    if (!res.ok) throw new Error('Server responded with ' + res.status);
+    bridgeMode = 'server';
+    onBridgeConnected(path.trim());
+    addMessage('system','Bridge mode: local server (' + serverUrl + ')');
+    startBridgePolling();
+  } catch(e) {
+    addMessage('error','Cannot reach bridge server at ' + serverUrl + '. Run: python3 bridge.py ' + path.trim());
+    addMessage('system','Example: python3 bridge.py ~/.local/share/tomogichi-qt/');
+    document.getElementById('bridge-status-msg').textContent = 'BRIDGE SERVER NOT REACHABLE — run python3 bridge.py';
+    document.getElementById('bridge-status-msg').className = 'bridge-status inactive';
+  }
+}
+
+function onBridgeConnected(name) {
+  document.getElementById('cfg-bridge-dir').value = name;
+  document.getElementById('bridge-status-msg').textContent = 'BRIDGE CONNECTED — ' + name + ' [' + bridgeMode + ']';
+  document.getElementById('bridge-status-msg').className = 'bridge-status active';
+  document.getElementById('status-bridge').textContent = 'CONNECTED';
+  document.getElementById('status-bridge').style.color = 'var(--green)';
+  document.getElementById('dot-bridge').className = 'dot green';
+  document.getElementById('proto-bridge').textContent = 'ONLINE';
+  addMessage('system','Bridge connected: ' + name);
+}
+
+// --- Unified file I/O ---
+
+async function readBridgeFile(filename) {
+  if (bridgeMode === 'fsa' && bridgeHandle) {
+    try {
+      const fh = await bridgeHandle.getFileHandle(filename);
+      const file = await fh.getFile();
+      return await file.text();
+    } catch(e) { return null; }
+  }
+  if (bridgeMode === 'server') {
+    try {
+      const res = await fetch((cfg.bridgeServer||'http://localhost:9191') + '/read/' + encodeURIComponent(filename));
+      if (!res.ok) return null;
+      return await res.text();
+    } catch(e) { return null; }
+  }
+  return null;
+}
+
+async function writeBridgeFile(filename, content) {
+  if (bridgeMode === 'fsa' && bridgeHandle) {
+    try {
+      const fh = await bridgeHandle.getFileHandle(filename, {create:true});
+      const writable = await fh.createWritable();
+      await writable.write(content);
+      await writable.close();
+      return true;
+    } catch(e) { addMessage('error','Bridge write error: '+e.message); return null; }
+  }
+  if (bridgeMode === 'server') {
+    try {
+      const res = await fetch((cfg.bridgeServer||'http://localhost:9191') + '/write/' + encodeURIComponent(filename), {
+        method:'POST', body: content
+      });
+      if (!res.ok) throw new Error('Write failed: '+res.status);
+      return true;
+    } catch(e) { addMessage('error','Bridge write error: '+e.message); return null; }
+  }
+  return null;
+}
+
+async function appendBridgeFile(filename, line) {
+  if (bridgeMode === 'fsa' && bridgeHandle) {
+    try {
+      let existing = '';
+      try { const fh = await bridgeHandle.getFileHandle(filename); const f=await fh.getFile(); existing=await f.text(); } catch(e){}
+      const fh = await bridgeHandle.getFileHandle(filename, {create:true});
+      const writable = await fh.createWritable();
+      await writable.write(existing + line + '\n');
+      await writable.close();
+      return true;
+    } catch(e) { addMessage('error','Bridge append error: '+e.message); return null; }
+  }
+  if (bridgeMode === 'server') {
+    try {
+      const res = await fetch((cfg.bridgeServer||'http://localhost:9191') + '/append/' + encodeURIComponent(filename), {
+        method:'POST', body: line + '\n'
+      });
+      if (!res.ok) throw new Error('Append failed: '+res.status);
+      return true;
+    } catch(e) { addMessage('error','Bridge append error: '+e.message); return null; }
+  }
+  return null;
+}
+
+async function bridgeFileExists(filename) {
+  if (bridgeMode === 'fsa' && bridgeHandle) {
+    try { await bridgeHandle.getFileHandle(filename); return true; } catch(e) { return false; }
+  }
+  if (bridgeMode === 'server') {
+    try {
+      const res = await fetch((cfg.bridgeServer||'http://localhost:9191') + '/exists/' + encodeURIComponent(filename));
+      return res.ok && (await res.json()).exists;
+    } catch(e) { return false; }
+  }
+  return false;
+}
+
+async function readTomogichiState() {
+  return await readBridgeFile('agora-state.json');
+}
+
+async function readEmergencyFlag() {
+  return await readBridgeFile('agora-emergency.flag');
+}
+
+async function readCommandResults() {
+  return await readBridgeFile('agora-results.json');
+}
+
+async function enqueueCommand(action, payload) {
+  const id = 'cmd_' + Date.now();
+  const cmd = JSON.stringify({id, ts: new Date().toISOString().replace('T',' ').substring(0,19), action, payload});
+  await appendBridgeFile('agora-commands.jsonl', cmd);
+  return id;
+}
+
+function startBridgePolling() {
+  if (bridgePollInterval) clearInterval(bridgePollInterval);
+  bridgePollInterval = setInterval(checkEmergencyFlag, 5000);
+}
+
+async function checkEmergencyFlag() {
+  const flag = await readEmergencyFlag();
+  if (flag && flag.trim()) {
+    addMessage('incoming','EMERGENCY SIGNAL DETECTED: ' + flag.trim());
+    document.getElementById('status-text').textContent = 'EMERGENCY';
+    document.getElementById('dot-status').className = 'dot red';
+    const emergencyMsg = 'EMERGENCY! The user has triggered the emergency button. Message: ' + flag.trim() + '\nRespond immediately with support and guidance. Check their state and give tactical advice.';
+    addMessage('system','Auto-dispatching emergency response...');
+    try {
+      const resp = await sendToLLM(emergencyMsg, true);
+      addMessage('ai', resp);
+    } catch(e) {
+      addMessage('error', e.message);
+    }
+    document.getElementById('status-text').textContent = 'ONLINE';
+    document.getElementById('dot-status').className = 'dot green';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// TOOL DEFINITIONS (matching agora-desktop)
+// ═══════════════════════════════════════════════
+function getBuiltinTools() {
+  const tools = [];
+
+  if (cfg.memTools) {
+    tools.push({type:'function',function:{name:'update_active_memory',description:'Update the active memory. Mode: replace, append, prepend, or patch (remove occurrence of content).',parameters:{type:'object',properties:{content:{type:'string',description:'Memory content'},mode:{type:'string',enum:['replace','append','prepend','patch'],description:'How to update'}},required:['content','mode']}}});
+    tools.push({type:'function',function:{name:'list_memory_files',description:'List all saved memory files.',parameters:{type:'object',properties:{},required:[]}}});
+    tools.push({type:'function',function:{name:'read_memory_file',description:'Read a saved memory file by name.',parameters:{type:'object',properties:{name:{type:'string',description:'File name'}},required:['name']}}});
+    tools.push({type:'function',function:{name:'create_memory_file',description:'Create a new memory file.',parameters:{type:'object',properties:{name:{type:'string',description:'File name'},content:{type:'string',description:'File content'},description:{type:'string',description:'Optional description'}},required:['name','content']}}});
+    tools.push({type:'function',function:{name:'delete_memory_file',description:'Delete a memory file by name.',parameters:{type:'object',properties:{name:{type:'string',description:'File name'}},required:['name']}}});
+  }
+
+  // Tomogichi bridge tools
+  tools.push({type:'function',function:{name:'tomogichi_read',description:'Read the user\'s full Tomogichi state (characters, skills, calendar, tasks, challenges, stats, schedule). Includes a rendered section with today\'s + this week\'s schedule in human-readable form.',parameters:{type:'object',properties:{},required:[]}}});
+  tools.push({type:'function',function:{name:'tomogichi_today',description:'Get today\'s rendered schedule + todos in compact format.',parameters:{type:'object',properties:{},required:[]}}});
+  tools.push({type:'function',function:{name:'tomogichi_week',description:'Get this week\'s rendered schedule (7 days).',parameters:{type:'object',properties:{},required:[]}}});
+  tools.push({type:'function',function:{name:'tomogichi_diary_add',description:'Add a diary entry to Tomogichi. Queued and applied automatically.',parameters:{type:'object',properties:{text:{type:'string',description:'Diary entry text'}},required:['text']}}});
+  tools.push({type:'function',function:{name:'tomogichi_todo_add',description:'Add a task to the user\'s Today list in Tomogichi.',parameters:{type:'object',properties:{text:{type:'string',description:'Task text'},date:{type:'string',description:'ISO date YYYY-MM-DD, empty=today'}},required:['text']}}});
+  tools.push({type:'function',function:{name:'tomogichi_schedule_add_override',description:'Add a one-time event (seminar, appointment) that overrides the recurring schedule. Pass start_date=end_date for single-day.',parameters:{type:'object',properties:{label:{type:'string',description:'Event label'},start_date:{type:'string',description:'ISO YYYY-MM-DD'},end_date:{type:'string',description:'ISO YYYY-MM-DD (same as start_date for single day)'},start_hour:{type:'integer'},start_minute:{type:'integer'},end_hour:{type:'integer'},end_minute:{type:'integer'}},required:['label','start_date','end_date','start_hour','start_minute','end_hour','end_minute']}}});
+  tools.push({type:'function',function:{name:'tomogichi_mood_log',description:'Log the user\'s current mood. Valid words: energetic, focused, calm, tired, grateful, frustrated, determined, creative, anxious, happy, sad.',parameters:{type:'object',properties:{word:{type:'string',description:'Mood word'}},required:['word']}}});
+  tools.push({type:'function',function:{name:'tomogichi_emergency_check',description:'Check if the user has triggered an emergency.',parameters:{type:'object',properties:{},required:[]}}});
+  tools.push({type:'function',function:{name:'tomogichi_command_status',description:'Check the status of a previously enqueued command (applied/pending/failed).',parameters:{type:'object',properties:{id:{type:'string',description:'Command id'}},required:['id']}}});
+  tools.push({type:'function',function:{name:'tomogichi_lock_app',description:'Lock the Tomogichi app for a focus block (1-24h). Emergency always remains available.',parameters:{type:'object',properties:{duration_hours:{type:'integer',description:'Lock duration in hours (1-24)'}},required:['duration_hours']}}});
+  tools.push({type:'function',function:{name:'tomogichi_challenge_add',description:'Create a personalized quest/challenge. Give coin rewards (10-50).',parameters:{type:'object',properties:{description:{type:'string',description:'Quest description'},person:{type:'string',description:'Character: riff/reef/pitch/rain'},skill:{type:'string',description:'Skill name'},target_count:{type:'integer',description:'How many times to complete'},target_days:{type:'integer',description:'Deadline in days'},coin_reward:{type:'integer',description:'Coins earned on completion (10-50)'}},required:['description','person','target_count','target_days','coin_reward']}}});
+  tools.push({type:'function',function:{name:'tomogichi_challenge_delete',description:'Remove a challenge by description (partial match).',parameters:{type:'object',properties:{description:{type:'string',description:'Description (or part of it) of the challenge to remove'}},required:['description']}}});
+  tools.push({type:'function',function:{name:'tomogichi_create_milestone',description:'Create a personal milestone (custom achievement).',parameters:{type:'object',properties:{id:{type:'string',description:'Unique ID e.g. first_sketchbook'},name:{type:'string',description:'Display name'},description:{type:'string',description:'What it means'},icon:{type:'string',description:'Emoji icon'}},required:['id','name','description','icon']}}});
+  tools.push({type:'function',function:{name:'tomogichi_unlock_milestone',description:'Mark a previously-created milestone as achieved.',parameters:{type:'object',properties:{id:{type:'string',description:'Milestone ID to unlock'}},required:['id']}}});
+  tools.push({type:'function',function:{name:'tomogichi_delete_milestone',description:'Remove a custom milestone.',parameters:{type:'object',properties:{id:{type:'string',description:'Milestone ID to delete'}},required:['id']}}});
+
+  return tools;
+}
+
+// ═══════════════════════════════════════════════
+// TOOL EXECUTION (matching agora-desktop)
+// ═══════════════════════════════════════════════
+const memoryFiles = {}; // In-memory store (agora-desktop uses disk, we use memory + optional localStorage)
+
+async function executeTool(name, argsStr) {
+  let args = {};
+  try { args = JSON.parse(argsStr || '{}'); } catch(e) {}
+
+  if (name === 'update_active_memory') {
+    const content = args.content || '';
+    const mode = args.mode || 'replace';
+    if (mode === 'replace') activeMemory = content;
+    else if (mode === 'append') activeMemory += '\n' + content;
+    else if (mode === 'prepend') activeMemory = content + '\n' + activeMemory;
+    else if (mode === 'patch') activeMemory = activeMemory.replace(content, '');
+    return 'Active memory updated (mode: '+mode+'). Current active memory:\n'+activeMemory;
+  }
+  if (name === 'list_memory_files') {
+    const keys = Object.keys(memoryFiles);
+    return 'Memory files ('+keys.length+'):\n'+keys.map(k=>'  - '+k+' ('+memoryFiles[k].length+' bytes)').join('\n') || '(none)';
+  }
+  if (name === 'read_memory_file') {
+    const fname = args.name || '';
+    return memoryFiles[fname] || 'File not found: '+fname;
+  }
+  if (name === 'create_memory_file') {
+    const fname = args.name || '', content = args.content || '';
+    memoryFiles[fname] = content;
+    return 'Memory file created: '+fname;
+  }
+  if (name === 'delete_memory_file') {
+    delete memoryFiles[args.name || ''];
+    return 'Memory file deleted: '+(args.name||'');
+  }
+
+  // Tomogichi bridge tools
+  if (name === 'tomogichi_read') {
+    const state = await readTomogichiState();
+    return state || 'Tomogichi data not found. The user may not have launched tomogichi yet, or the bridge directory is not set.';
+  }
+  if (name === 'tomogichi_today') {
+    const state = await readTomogichiState();
+    if (!state) return 'Tomogichi state not found.';
+    try {
+      const j = JSON.parse(state);
+      if (!j.rendered) return 'No rendered schedule in state.';
+      const r = j.rendered;
+      let out = 'Today ('+(r.today_iso||'?')+(r.week_label?', '+r.week_label:'')+'):\n';
+      if (r.today_schedule && r.today_schedule.length) {
+        out += 'Schedule:\n';
+        for (const s of r.today_schedule) out += '  '+s.start+'-'+s.end+' '+s.label+(s.is_override?' [override]':'')+'\n';
+      } else out += 'Schedule: (nothing)\n';
+      if (r.today_todos && r.today_todos.length) {
+        out += 'Tasks:\n';
+        for (const t of r.today_todos) out += '  '+(t.done?'[x] ':'[ ] ')+t.text+'\n';
+      } else out += 'Tasks: (none)\n';
+      return out;
+    } catch(e) { return 'Error: '+e.message; }
+  }
+  if (name === 'tomogichi_week') {
+    const state = await readTomogichiState();
+    if (!state) return 'Tomogichi state not found.';
+    try {
+      const j = JSON.parse(state);
+      if (!j.rendered || !j.rendered.week) return 'No week schedule in state.';
+      let out = 'Week schedule'+(j.rendered.week_label?' ('+j.rendered.week_label+')':'')+':\n';
+      for (const day of j.rendered.week) {
+        out += day.dow+' '+day.iso+':\n';
+        if (day.schedule && day.schedule.length) {
+          for (const s of day.schedule) out += '  '+s.start+'-'+s.end+' '+s.label+(s.is_override?' [override]':'')+'\n';
+        } else out += '  (nothing)\n';
+        if (day.todos && day.todos.length) for (const t of day.todos) out += '  '+(t.done?'[x] ':'[ ] ')+t.text+'\n';
+      }
+      return out;
+    } catch(e) { return 'Error: '+e.message; }
+  }
+  if (name === 'tomogichi_diary_add') {
+    const text = args.text || '';
+    if (!text) return 'Error: diary text is empty.';
+    const id = await enqueueCommand('diary_add', {text});
+    return 'Diary entry queued (id='+id+'). Tomogichi will apply it on next poll.';
+  }
+  if (name === 'tomogichi_todo_add') {
+    const text = args.text || '';
+    if (!text) return 'Error: task text is empty.';
+    const id = await enqueueCommand('todo_add', {text, date:args.date||''});
+    return 'Task queued (id='+id+'). Will be added to the user\'s Today list.';
+  }
+  if (name === 'tomogichi_schedule_add_override') {
+    const label = args.label || '';
+    if (!label) return 'Error: label is empty.';
+    const id = await enqueueCommand('schedule_add_override', {
+      label, start_date:args.start_date||'', end_date:args.end_date||'',
+      start_hour:args.start_hour||0, start_minute:args.start_minute||0,
+      end_hour:args.end_hour||23, end_minute:args.end_minute||59
+    });
+    return 'Override event queued (id='+id+').';
+  }
+  if (name === 'tomogichi_mood_log') {
+    const word = args.word || '';
+    if (!word) return 'Error: mood word is empty.';
+    const id = await enqueueCommand('mood_log', {word});
+    return 'Mood logged (id='+id+').';
+  }
+  if (name === 'tomogichi_emergency_check') {
+    const flag = await readEmergencyFlag();
+    return flag && flag.trim() ? 'ACTIVE EMERGENCY: '+flag.trim() : 'No active emergency.';
+  }
+  if (name === 'tomogichi_command_status') {
+    const id = args.id || '';
+    if (!id) return 'Error: command id is empty.';
+    const results = await readCommandResults();
+    if (!results) return 'No results file yet — command may still be pending.';
+    try {
+      const r = JSON.parse(results);
+      return r[id] ? JSON.stringify(r[id]) : 'Command '+id+' is pending (tomogichi hasn\'t applied it yet).';
+    } catch(e) { return 'Results file unreadable.'; }
+  }
+  if (name === 'tomogichi_lock_app') {
+    const hours = args.duration_hours || 0;
+    if (hours <= 0 || hours > 24) return 'Error: duration_hours must be 1-24.';
+    const id = await enqueueCommand('lock_app', {duration_hours:hours});
+    return 'Lock command queued (id='+id+'). Tomogichi will lock for '+hours+'h.';
+  }
+  if (name === 'tomogichi_challenge_add') {
+    const id = await enqueueCommand('challenge_add', {
+      description:args.description||'', person:args.person||'', skill:args.skill||'',
+      target_count:args.target_count||1, target_days:args.target_days||7, coin_reward:args.coin_reward||10
+    });
+    return 'Challenge queued (id='+id+'). Quest will appear in Stats tab.';
+  }
+  if (name === 'tomogichi_challenge_delete') {
+    const id = await enqueueCommand('challenge_delete', {description:args.description||''});
+    return 'Challenge deletion queued (id='+id+').';
+  }
+  if (name === 'tomogichi_create_milestone') {
+    const id = await enqueueCommand('milestone_add', {id:args.id||'', name:args.name||'', description:args.description||'', icon:args.icon||''});
+    return 'Milestone created (id='+id+').';
+  }
+  if (name === 'tomogichi_unlock_milestone') {
+    const id = await enqueueCommand('milestone_unlock', {id:args.id||''});
+    return 'Milestone unlocked (id='+id+').';
+  }
+  if (name === 'tomogichi_delete_milestone') {
+    const id = await enqueueCommand('milestone_delete', {id:args.id||''});
+    return 'Milestone deleted (id='+id+').';
+  }
+
+  return 'Unknown tool: '+name;
+}
+
+// ═══════════════════════════════════════════════
+// VARIABLE RESOLUTION
+// ═══════════════════════════════════════════════
+async function resolveVariables(template) {
+  let result = template;
+  const now = new Date();
+  result = result.replace(/\{date\}/g, now.toISOString().substring(0,10));
+  result = result.replace(/\{time\}/g, now.toTimeString().substring(0,8));
+  result = result.replace(/\{current_date\}/g, now.toISOString().substring(0,10));
+  result = result.replace(/\{active_memory\}/g, activeMemory || '(empty)');
+
+  // Tomogichi state
+  const tomo = await readTomogichiState();
+  result = result.replace(/\{tomogichi\}/g, tomo ? '<tomogichi>\n'+tomo+'\n</tomogichi>' : '(tomogichi state not available)');
+
+  // Emergency flag
+  const em = await readEmergencyFlag();
+  result = result.replace(/\{emergency\}/g, em && em.trim() ? '<emergency>\n'+em.trim()+'\n</emergency>' : '');
+
+  return result;
+}
+
+// ═══════════════════════════════════════════════
+// LLM API CALL (llama.cpp / OpenAI-compatible)
+// ═══════════════════════════════════════════════
+let conversationMessages = [];
+
+async function sendToLLM(userMessage, isEmergency) {
+  if (!cfg.model) throw new Error('No model configured. Set model in CONFIG.');
+
+  const tools = getBuiltinTools();
+  const systemPrompt = await resolveVariables(cfg.systemPrompt);
+
+  // Build messages
+  const messages = [];
+  messages.push({role:'system', content:systemPrompt});
+
+  // Add active memory if non-empty
+  if (activeMemory) {
+    messages.push({role:'system', content:'<active_memory>\n'+activeMemory+'\n</active_memory>'});
+  }
+
+  // Add conversation history (last 20 user/assistant exchanges)
+  const recent = conversationMessages.slice(-40);
+  for (const m of recent) {
+    messages.push(m);
+  }
+
+  // Add current user message
+  messages.push({role:'user', content:userMessage});
+
+  // API call
+  let endpoint = cfg.endpoint.replace(/\/+$/, '');
+  const url = endpoint + '/chat/completions';
+
+  const headers = {'Content-Type':'application/json'};
+  if (cfg.apikey) headers['Authorization'] = 'Bearer ' + cfg.apikey;
+
+  const body = {
+    model: cfg.model,
+    messages: messages,
+    stream: false,
+    temperature: 0.7,
+    max_tokens: 1024,
+  };
+  if (tools.length > 0) body.tools = tools;
+
+  const res = await fetch(url, {
+    method:'POST', headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(90000)
+  });
+
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('Unable to contact Cybertron command. Check endpoint.');
+    throw new Error('Network error. Verify endpoint. ('+res.status+')');
+  }
+
+  const data = await res.json();
+  const choice = data.choices && data.choices[0];
+  if (!choice) throw new Error('No response. Retry.');
+
+  const msg = choice.message;
+
+  // Handle tool calls
+  if (msg.tool_calls && msg.tool_calls.length > 0) {
+    // Save assistant message with tool calls
+    conversationMessages.push({role:'assistant', content:msg.content||'', tool_calls:msg.tool_calls});
+
+    for (const tc of msg.tool_calls) {
+      const fn = tc.function;
+      addMessage('tool', fn.name + '(' + fn.arguments + ')');
+      const result = await executeTool(fn.name, fn.arguments);
+      addMessage('tool', '→ ' + (result.length > 200 ? result.substring(0,200)+'...' : result));
+
+      // Add tool result message
+      conversationMessages.push({role:'tool', tool_call_id:tc.id, content:result});
+    }
+
+    // Send follow-up to get final response
+    return await continueWithToolResults(isEmergency);
+  }
+
+  // Save response
+  const content = msg.content || '';
+  conversationMessages.push({role:'assistant', content:content});
+
+  // Trim history
+  if (conversationMessages.length > 60) {
+    conversationMessages = conversationMessages.slice(-40);
+  }
+
+  if (!content.trim()) throw new Error('No response. Retry.');
+  return content;
+}
+
+async function continueWithToolResults(isEmergency) {
+  const tools = getBuiltinTools();
+  const systemPrompt = await resolveVariables(cfg.systemPrompt);
+
+  const messages = [];
+  messages.push({role:'system', content:systemPrompt});
+  if (activeMemory) messages.push({role:'system', content:'<active_memory>\n'+activeMemory+'\n</active_memory>'});
+
+  const recent = conversationMessages.slice(-50);
+  for (const m of recent) messages.push(m);
+
+  let endpoint = cfg.endpoint.replace(/\/+$/, '');
+  const url = endpoint + '/chat/completions';
+  const headers = {'Content-Type':'application/json'};
+  if (cfg.apikey) headers['Authorization'] = 'Bearer ' + cfg.apikey;
+
+  const body = {
+    model: cfg.model,
+    messages: messages,
+    stream: false,
+    temperature: 0.7,
+    max_tokens: 1024,
+  };
+  if (tools.length > 0) body.tools = tools;
+
+  const res = await fetch(url, {
+    method:'POST', headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(90000)
+  });
+  if (!res.ok) throw new Error('Network error on follow-up. ('+res.status+')');
+
+  const data = await res.json();
+  const choice = data.choices && data.choices[0];
+  if (!choice) throw new Error('No response. Retry.');
+
+  const msg = choice.message;
+
+  // Handle further tool calls (recursive, max 5 rounds)
+  if (msg.tool_calls && msg.tool_calls.length > 0) {
+    const rounds = conversationMessages.filter(m=>m.role==='assistant'&&m.tool_calls).length;
+    if (rounds >= 5) {
+      conversationMessages.push({role:'assistant', content:'(Too many tool call rounds. Stopping.)'});
+      return 'Multiple tool iterations complete. Ask the user for further direction.';
+    }
+    conversationMessages.push({role:'assistant', content:msg.content||'', tool_calls:msg.tool_calls});
+    for (const tc of msg.tool_calls) {
+      const fn = tc.function;
+      addMessage('tool', fn.name + '(' + fn.arguments + ')');
+      const result = await executeTool(fn.name, fn.arguments);
+      addMessage('tool', '→ ' + (result.length > 200 ? result.substring(0,200)+'...' : result));
+      conversationMessages.push({role:'tool', tool_call_id:tc.id, content:result});
+    }
+    return await continueWithToolResults(isEmergency);
+  }
+
+  const content = msg.content || '';
+  conversationMessages.push({role:'assistant', content:content});
+  if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
+  if (!content.trim()) throw new Error('No response. Retry.');
+  return content;
+}
+
+// ═══════════════════════════════════════════════
+// MORNING BRIEF
+// ═══════════════════════════════════════════════
+async function runMorningBrief() {
+  addMessage('system','=== Generating morning brief... ===');
+  const now = new Date();
+  const today = now.toISOString().substring(0,10);
+
+  let brief = '=== MORNING BRIEF — ' + today + ' ===\n\n';
+
+  // Tomogichi state
+  const state = await readTomogichiState();
+  if (state) {
+    try {
+      const j = JSON.parse(state);
+      brief += '[Companion state]\n';
+      if (j.persons && j.persons.length) {
+        brief += 'Characters:\n';
+        for (const p of j.persons) brief += '  '+p.name+' (Lvl '+(p.level||0)+')\n';
+      }
+      if (j.master) {
+        if (j.master.daily_todos) {
+          let pending=0, done=0;
+          for (const t of j.master.daily_todos) t.done?done++:pending++;
+          brief += 'Today: '+pending+' pending, '+done+' done tasks\n';
+        }
+        const entropy = j.master.entropy||0, sync = j.master.team_sync||0;
+        brief += 'Entropy: '+entropy+'/100, Sync: '+sync+'%\n';
+        if (j.master.mood_log) {
+          const moods = j.master.mood_log;
+          const show = Math.min(3, moods.length);
+          if (show>0) { brief += 'Recent mood: '; for (let i=moods.length-show;i<moods.length;i++) brief += moods[i].word+(i<moods.length-1?', ':''); brief += '\n'; }
+        }
+      }
+      brief += '\n';
+    } catch(e) { brief += '(failed to parse tomogichi state)\n\n'; }
+  } else {
+    brief += '[Companion state]\n(not available — tomogichi hasn\'t exported state yet)\n\n';
+  }
+
+  // Weather
+  if (cfg.weatherEnabled && cfg.weatherLat && cfg.weatherLon) {
+    try {
+      const w = await fetchWeather(parseFloat(cfg.weatherLat), parseFloat(cfg.weatherLon));
+      if (w.valid) {
+        brief += '[Weather — '+(cfg.weatherCity||'Unknown')+']\n'+w.summary+'\nClothing: '+w.clothing_hint+'\n\n';
+      } else {
+        brief += '[Weather]\n(unavailable — offline or fetch failed)\n\n';
+      }
+    } catch(e) { brief += '[Weather]\n(fetch error: '+e.message+')\n\n'; }
+  } else {
+    brief += '[Weather]\n(location not configured — set lat/lon in Settings)\n\n';
+  }
+
+  brief += 'Use this context naturally in conversation. If the user seems stressed or entropy is high, lead with support, not tasks.';
+
+  activeMemory = brief;
+  addMessage('system','Morning brief generated. Active memory updated.');
+  addMessage('incoming', brief);
+  document.getElementById('proto-bridge').textContent = 'BRIEFED';
+  return brief;
+}
+
+async function fetchWeather(lat, lon) {
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(4)+'&longitude='+lon.toFixed(4)+'&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=1';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return {valid:false};
+    const j = await res.json();
+    if (!j.daily) return {valid:false};
+    const d = j.daily;
+    const w = {
+      valid:true,
+      temp_max: d.temperature_2m_max[0],
+      temp_min: d.temperature_2m_min[0],
+      precip_prob: (d.precipitation_probability_max?.[0]||0) / 100,
+      wind_max: d.wind_speed_10m_max?.[0]||0,
+      summary: '', clothing_hint: ''
+    };
+    w.summary = 'max '+Math.round(w.temp_max)+'°C, min '+Math.round(w.temp_min)+'°C, '+Math.round(w.precip_prob*100)+'% rain, wind '+Math.round(w.wind_max)+'km/h';
+    let hint = '';
+    const t = w.temp_max;
+    if (t<0) hint='Heavy coat, gloves, hat, scarf';
+    else if (t<8) hint='Winter coat, warm layers';
+    else if (t<14) hint='Warm jacket or coat';
+    else if (t<18) hint='Light jacket or sweater';
+    else if (t<23) hint='Long sleeves, light layer';
+    else if (t<28) hint='T-shirt, light clothing';
+    else hint='Light clothing, sun protection';
+    if (w.precip_prob>.4) hint+=', umbrella recommended';
+    else if (w.precip_prob>.2) hint+=', light rain possible';
+    if (w.wind_max>30) hint+=', windy';
+    w.clothing_hint = hint;
+    return w;
+  } catch(e) { return {valid:false}; }
+}
+
+// ═══════════════════════════════════════════════
+// SEND MESSAGE
+// ═══════════════════════════════════════════════
+async function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; input.style.height = 'auto';
+
+  addMessage('user', text);
+  document.getElementById('btn-send').disabled = true;
+  document.getElementById('btn-send').textContent = '...';
+  document.getElementById('status-text').textContent = 'PROCESSING...';
+  document.getElementById('dot-status').className = 'dot red';
+
+  try {
+    const response = await sendToLLM(text, false);
+    addMessage('ai', response);
+    document.getElementById('status-text').textContent = 'ONLINE';
+    document.getElementById('dot-status').className = 'dot green';
+  } catch(err) {
+    addMessage('error', err.message);
+    document.getElementById('status-text').textContent = 'ONLINE';
+    document.getElementById('dot-status').className = 'dot green';
+  }
+
+  document.getElementById('btn-send').disabled = false;
+  document.getElementById('btn-send').textContent = 'SEND';
+  input.focus();
+}
+
+// ═══════════════════════════════════════════════
+// STT
+// ═══════════════════════════════════════════════
+function toggleMic() {
+  if (isRecording) { stopListening(); return; }
+  if (cfg.sttProvider === 'web-speech') sttListen();
+}
+function sttListen() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { addMessage('error','Speech recognition unavailable.'); return; }
+  if (!recognition) {
+    recognition = new SR();
+    recognition.continuous = false; recognition.interimResults = true; recognition.lang = 'en-US';
+    recognition.onresult = (e) => {
+      let interim='', final='';
+      for (let i=e.resultIndex;i<e.results.length;i++) { if(e.results[i].isFinal) final+=e.results[i][0].transcript; else interim+=e.results[i][0].transcript; }
+      const input=document.getElementById('msg-input'); input.value=final||interim; input.style.color=final?'':'var(--grey)';
+      if (final) { stopListening(); sendMessage(); }
+    };
+    recognition.onerror = (e) => { stopListening(); addMessage('error','Speech recognition error: '+e.error); };
+    recognition.onend = () => { stopListening(); };
+  }
+  try { recognition.start(); isRecording=true; document.getElementById('btn-mic').classList.add('recording'); document.getElementById('dot-stt').className='dot red'; }
+  catch(e) { stopListening(); }
+}
+function stopListening() {
+  if (recognition) { try{recognition.stop()}catch(e){} }
+  isRecording=false; document.getElementById('btn-mic').classList.remove('recording'); document.getElementById('msg-input').style.color='';
+  updateProtocols();
+}
+
+// ═══════════════════════════════════════════════
+// TTS
+// ═══════════════════════════════════════════════
+function toggleTTS() {
+  ttsEnabled = !ttsEnabled;
+  const btn = document.getElementById('btn-tts');
+  if (ttsEnabled) { btn.classList.add('tts-on'); btn.title='Speech output: ON'; }
+  else { btn.classList.remove('tts-on','tts-speaking'); btn.title='Speech output: OFF'; window.speechSynthesis.cancel(); if(currentAudio){currentAudio.pause();currentAudio=null;} isSpeaking=false; }
+  updateProtocols();
+}
+function ttsSpeak(text) {
+  if (!ttsEnabled) return;
+  const btn=document.getElementById('btn-tts');
+
+  if (cfg.ttsProvider === 'piper') {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    const server = cfg.bridgeServer || 'http://localhost:9191';
+    fetch(server + '/tts', { method: 'POST', body: text })
+      .then(res => { if(!res.ok) throw new Error('TTS failed: '+res.status); return res.blob(); })
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        currentAudio = audio;
+        btn.classList.add('tts-speaking'); isSpeaking = true;
+        audio.onended = () => {
+          btn.classList.remove('tts-speaking'); isSpeaking = false;
+          URL.revokeObjectURL(url); currentAudio = null;
+        };
+        audio.onerror = () => {
+          btn.classList.remove('tts-speaking'); isSpeaking = false;
+          URL.revokeObjectURL(url); currentAudio = null;
+        };
+        audio.play();
+      })
+      .catch(e => {
+        btn.classList.remove('tts-speaking'); isSpeaking = false;
+        addMessage('error', 'Piper TTS error: ' + e.message);
+      });
+    return;
+  }
+
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate=.95; utter.pitch=1; utter.volume=1;
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v=>v.name.includes(cfg.ttsVoice))||voices.find(v=>v.lang==='en-US'&&v.name.includes('Male'))||voices.find(v=>v.lang.startsWith('en'));
+  if (preferred) utter.voice=preferred;
+  btn.classList.add('tts-speaking'); isSpeaking=true;
+  utter.onend=()=>{btn.classList.remove('tts-speaking');isSpeaking=false;};
+  utter.onerror=()=>{btn.classList.remove('tts-speaking');isSpeaking=false;};
+  window.speechSynthesis.speak(utter);
+}
+if (window.speechSynthesis) { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices(); }
+
+// ═══════════════════════════════════════════════
+// STATUS & PROTOCOLS
+// ═══════════════════════════════════════════════
+function updateStatus() {
+  document.getElementById('status-model').textContent = cfg.model || '--';
+  document.getElementById('status-bridge').textContent = bridgeMode !== 'none' ? 'CONNECTED ['+bridgeMode+']' : '--';
+  document.getElementById('status-bridge').style.color = bridgeMode !== 'none' ? 'var(--green)' : 'var(--grey)';
+}
+function updateProtocols() {
+  const sttAvail = !!(window.SpeechRecognition||window.webkitSpeechRecognition);
+  const ttsAvail = !!(window.speechSynthesis || cfg.ttsProvider === 'piper');
+  document.getElementById('dot-stt').className = sttAvail?'dot green':'dot grey';
+  document.getElementById('proto-stt').textContent = sttAvail?'READY':'N/A';
+  document.getElementById('dot-llm').className = cfg.model?'dot green':'dot grey';
+  document.getElementById('proto-llm').textContent = cfg.model?'READY':'CONFIGURE';
+  document.getElementById('dot-tts').className = ttsAvail?'dot green':'dot grey';
+  document.getElementById('proto-tts').textContent = ttsAvail?(ttsEnabled?'ON':'OFF'):'N/A';
+  document.getElementById('dot-bridge').className = bridgeMode !== 'none' ? 'dot green' : 'dot grey';
+  document.getElementById('proto-bridge').textContent = bridgeMode !== 'none' ? 'ONLINE ['+bridgeMode+']' : '--';
+
+  const micBtn=document.getElementById('btn-mic'), ttsBtn=document.getElementById('btn-tts');
+  if(!sttAvail){micBtn.disabled=true;micBtn.title='Speech recognition unavailable';}else{micBtn.disabled=false;micBtn.title='Voice input';}
+  if(!ttsAvail){ttsBtn.disabled=true;ttsBtn.title='Speech synthesis unavailable';}else{ttsBtn.disabled=false;ttsBtn.title=ttsEnabled?'Speech output: ON':'Speech output: OFF';}
+}
+
+// ═══════════════════════════════════════════════
+// CLOCK
+// ═══════════════════════════════════════════════
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-US',{hour12:false})+' | '+now.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
+}
+updateClock(); setInterval(updateClock, 1000);
+
+// ═══════════════════════════════════════════════
+// CONFIG PANEL
+// ═══════════════════════════════════════════════
+function toggleConfig() {
+  const overlay = document.getElementById('config-overlay');
+  overlay.classList.toggle('open');
+  if (overlay.classList.contains('open')) populateConfigFields();
+}
+
+// ═══════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════
+document.addEventListener('keydown', (e) => {
+  if (e.key==='Escape') { document.getElementById('config-overlay').classList.remove('open'); document.getElementById('msg-input').blur(); }
+  if ((e.ctrlKey||e.metaKey)&&e.key===',') { e.preventDefault(); toggleConfig(); }
+  if ((e.ctrlKey||e.metaKey)&&e.key==='l') { e.preventDefault(); clearTerminal(); }
+  if ((e.ctrlKey||e.metaKey)&&e.key==='Enter') { e.preventDefault(); sendMessage(); }
+  if ((e.ctrlKey||e.metaKey)&&e.key==='b') { e.preventDefault(); runMorningBrief(); }
+});
+document.getElementById('msg-input').addEventListener('keydown', (e) => {
+  if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById('msg-input').addEventListener('input', function() {
+  this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,120)+'px';
+});
+document.getElementById('config-overlay').addEventListener('click', function(e) { if (e.target===this) toggleConfig(); });
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init() {
+  initCanvas();
+  populateConfigFields();
+  updateStatus();
+  updateProtocols();
+
+  const browserMsg = hasFSA()
+    ? 'Browser: Chrome/Edge detected — bridge uses File System Access API.'
+    : 'Browser: Firefox detected — bridge requires local server. Use CONFIG → SELECT to set up.';
+  const bridgePath = localStorage.getItem('teletraan-bridge-path');
+  if (bridgePath) document.getElementById('cfg-bridge-dir').value = bridgePath;
+
+  addMessage('system','Teletraan-1 online. Agora bridge active.');
+  addMessage('system','LLM endpoint: '+cfg.endpoint+' | Model: '+(cfg.model||'not set'));
+  addMessage('system',browserMsg);
+  addMessage('system','Tomogichi bridge: Use CONFIG → SELECT to connect.');
+  addMessage('system','Type a message to begin, Ctrl+B for morning brief.');
+
+  if (!cfg.model) addMessage('system','WARNING: No model configured. Set your llama.cpp model in CONFIG.');
+  if (!hasFSA()) addMessage('system','Firefox: run "python3 bridge.py ~/.local/share/tomogichi-qt/" in a terminal first.');
+}
+
+init();
+</script>
+</body>
+</html>

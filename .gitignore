@@ -1,0 +1,4 @@
+*.onnx
+*.onnx.json
+piper-venv/
+__pycache__/
