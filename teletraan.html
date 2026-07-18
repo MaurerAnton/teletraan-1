@@ -1453,11 +1453,67 @@ function stopListening() {
 // ═══════════════════════════════════════════════
 // TTS
 // ═══════════════════════════════════════════════
+// Check whether TTS is available for the configured provider, return {ok, reason}
+function checkTtsAvailable() {
+  if (cfg.ttsProvider === 'web-speech') {
+    if (!window.speechSynthesis) return {ok: false, reason: 'Web Speech API not available in this browser'};
+    return {ok: true, reason: ''};
+  }
+  if (cfg.ttsProvider === 'piper') {
+    if (bridgeMode === 'none') return {ok: false, reason: 'Bridge not connected (Piper needs bridge as CORS proxy)'};
+    return {ok: true, reason: ''};
+  }
+  if (cfg.ttsProvider === 'custom') {
+    if (!cfg.ttsEndpoint) return {ok: false, reason: 'No TTS endpoint configured'};
+    return {ok: true, reason: ''};
+  }
+  return {ok: false, reason: 'Unknown TTS provider'};
+}
+
+function showTtsSetupHelp(reason) {
+  addMessage('error', '🔊 TTS unavailable — ' + reason);
+  if (cfg.ttsProvider === 'piper') {
+    const help = [
+      '═══════════ PIPER TTS SETUP ═══════════',
+      'Piper is local on your device, but the browser cannot call it directly.',
+      'Browser security (CORS) blocks file:// → http://localhost:5000 requests.',
+      'bridge.py solves this by acting as a CORS-adding proxy.',
+      '',
+      'Step 1 — Start Piper TTS server (if not already running):',
+      '  ~/piper-venv/bin/python3 -m piper.http_server -m en_US-lessac-medium',
+      '',
+      'Step 2 — Start bridge.py with TTS proxy (in a new terminal):',
+      '  python3 bridge.py ~/.local/share/tomogichi-qt/ --tts-url http://localhost:5000',
+      '  (run from the directory containing bridge.py, or use the full path)',
+      '',
+      'Step 3 — In this app: click CONFIG → SELECT → enter the path → bridge connects',
+      '',
+      'Step 4 — Click 🔊 again to enable TTS',
+      '',
+      'Audio flow: LibreWolf → bridge:9191/tts → Piper:5000/synthesize → speaker',
+      '═══════════════════════════════════════',
+    ].join('\n');
+    addMessage('incoming', help);
+  } else if (cfg.ttsProvider === 'custom') {
+    addMessage('system', 'CUSTOM TTS: Set the TTS Endpoint field in CONFIG (any HTTP endpoint that accepts {"text":"..."} POST and returns audio bytes).');
+  } else {
+    addMessage('system', 'WEB SPEECH: This browser does not support the Web Speech API. Try Chrome, or switch to Piper TTS in CONFIG.');
+  }
+}
+
 function toggleTTS() {
+  // If turning ON, check availability first — show setup help if unavailable
+  if (!ttsEnabled) {
+    const avail = checkTtsAvailable();
+    if (!avail.ok) {
+      showTtsSetupHelp(avail.reason);
+      return;  // Don't toggle on — user needs to fix setup first
+    }
+  }
   ttsEnabled = !ttsEnabled;
   const btn = document.getElementById('btn-tts');
   if (ttsEnabled) {
-    btn.classList.add('tts-on'); btn.title='Speech output: ON';
+    btn.classList.add('tts-on'); btn.title='Speech output: ON ('+cfg.ttsProvider+')';
   } else {
     btn.classList.remove('tts-on','tts-speaking');
     btn.title='Speech output: OFF';
@@ -1565,37 +1621,40 @@ function updateProtocols() {
   //  - web-speech: needs window.speechSynthesis
   //  - piper: needs bridge connected (server proxies /tts to Piper)
   //  - custom: needs cfg.ttsEndpoint set
-  let ttsAvail = false;
+  const avail = checkTtsAvailable();
+  const ttsAvail = avail.ok;
   let ttsStatus = 'N/A';
-  if (cfg.ttsProvider === 'web-speech') {
-    ttsAvail = !!window.speechSynthesis;
-    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'N/A';
-  } else if (cfg.ttsProvider === 'piper') {
-    ttsAvail = (bridgeMode !== 'none');
-    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'NO BRIDGE';
+  if (cfg.ttsProvider === 'piper') {
+    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'START BRIDGE';
   } else if (cfg.ttsProvider === 'custom') {
-    ttsAvail = !!cfg.ttsEndpoint;
-    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'NO URL';
+    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'SET URL';
+  } else {
+    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'N/A';
   }
+  // TTS dot is red (not grey) when provider is selected but needs setup — signals "needs attention"
+  let ttsDotClass = 'dot grey';
+  if (ttsAvail) ttsDotClass = ttsEnabled ? 'dot green' : 'dot green';
+  else if (cfg.ttsProvider === 'piper' || cfg.ttsProvider === 'custom') ttsDotClass = 'dot red';
+
   document.getElementById('dot-stt').className = sttAvail?'dot green':'dot grey';
   document.getElementById('proto-stt').textContent = sttAvail?'READY':'N/A';
   document.getElementById('dot-llm').className = cfg.model?'dot green':'dot grey';
   document.getElementById('proto-llm').textContent = cfg.model?'READY':'CONFIGURE';
-  document.getElementById('dot-tts').className = ttsAvail?'dot green':'dot grey';
+  document.getElementById('dot-tts').className = ttsDotClass;
   document.getElementById('proto-tts').textContent = ttsStatus;
   document.getElementById('dot-bridge').className = bridgeMode !== 'none' ? 'dot green' : 'dot grey';
   document.getElementById('proto-bridge').textContent = bridgeMode !== 'none' ? 'ONLINE ['+bridgeMode+']' : '--';
 
   const micBtn=document.getElementById('btn-mic'), ttsBtn=document.getElementById('btn-tts');
   if(!sttAvail){micBtn.disabled=true;micBtn.title='Speech recognition unavailable';}else{micBtn.disabled=false;micBtn.title='Voice input';}
-  if(!ttsAvail){
-    ttsBtn.disabled=true;
-    ttsBtn.title = cfg.ttsProvider === 'piper' ? 'Piper needs bridge connected' :
-                  cfg.ttsProvider === 'custom' ? 'Set TTS endpoint in CONFIG' :
-                  'Speech synthesis unavailable';
+  // TTS button stays enabled even when unavailable — clicking it shows setup help
+  ttsBtn.disabled = false;
+  if (!ttsAvail) {
+    ttsBtn.title = cfg.ttsProvider === 'piper' ? 'Click for Piper setup instructions' :
+                  cfg.ttsProvider === 'custom' ? 'Click for setup instructions (set TTS endpoint in CONFIG)' :
+                  'Speech synthesis unavailable — click for help';
   } else {
-    ttsBtn.disabled=false;
-    ttsBtn.title = ttsEnabled ? 'Speech output: ON ('+cfg.ttsProvider+')' : 'Speech output: OFF';
+    ttsBtn.title = ttsEnabled ? 'Speech output: ON ('+cfg.ttsProvider+')' : 'Speech output: OFF ('+cfg.ttsProvider+')';
   }
 }
 
@@ -1660,6 +1719,12 @@ function init() {
   if (!cfg.apikey && cfg.endpoint.includes('deepseek.com')) addMessage('system','WARNING: No API key set. Get one at platform.deepseek.com/api_keys');
   if (!cfg.model) addMessage('system','WARNING: No model configured. Set in CONFIG.');
   if (!hasFSA()) addMessage('system','Firefox: run "python3 bridge.py ~/.local/share/tomogichi-qt/" in a terminal first.');
+
+  // If TTS is set to Piper but bridge isn't connected, show setup hint once on startup
+  const ttsAvail = checkTtsAvailable();
+  if (!ttsAvail.ok && cfg.ttsProvider === 'piper') {
+    setTimeout(() => showTtsSetupHelp(ttsAvail.reason), 1500);
+  }
 
   // Restore previous conversation (silent = no typewriter animation, no TTS) — v4-pro fix
   if (conversationMessages.length > 0) {
