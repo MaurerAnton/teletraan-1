@@ -86,6 +86,51 @@ html,body{height:100%;width:100%;overflow:hidden;
 .row-chk{flex-direction:row!important;align-items:center;gap:8px}
 .row-chk input[type=checkbox]{width:auto}
 
+/* Provider preset chips */
+.preset-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.preset-chip{background:transparent;border:1px solid var(--border);color:var(--grey);
+  font-family:inherit;font-size:.62em;letter-spacing:1px;padding:5px 8px;cursor:pointer;
+  border-radius:3px;transition:all .2s;text-transform:uppercase}
+.preset-chip:hover{border-color:var(--blue);color:var(--blue)}
+.preset-chip.active{border-color:var(--blue);color:var(--blue);box-shadow:0 0 8px var(--blue);background:rgba(77,201,246,.08)}
+
+/* Password field with toggle */
+.input-with-btn{display:flex;gap:6px;align-items:stretch}
+.input-with-btn input{flex:1}
+.toggle-btn{background:transparent;border:1px solid var(--border);color:var(--grey);
+  font-family:inherit;font-size:.7em;padding:4px 8px;cursor:pointer;border-radius:3px;white-space:nowrap}
+.toggle-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+/* Reasoning block (collapsible) */
+.msg-reasoning{color:var(--purple);font-size:.7em;border-left:2px solid var(--purple);
+  padding:6px 10px;margin:4px 0;background:rgba(155,89,182,.05);border-radius:0 3px 3px 0}
+.reasoning-header{cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;
+  color:var(--purple);font-size:.9em;letter-spacing:1px}
+.reasoning-header:hover{text-shadow:0 0 6px var(--purple)}
+.reasoning-body{margin-top:6px;white-space:pre-wrap;word-break:break-word;opacity:.85;max-height:300px;overflow-y:auto}
+.reasoning-body.collapsed{display:none}
+.reasoning-body::-webkit-scrollbar{width:3px}
+.reasoning-body::-webkit-scrollbar-thumb{background:var(--purple);border-radius:2px}
+
+/* Stop button */
+#btn-send.stopping{color:var(--red);border-color:var(--red);box-shadow:0 0 10px var(--red);animation:pulseBtn .6s infinite}
+
+/* Tool call cards */
+.msg-tool-card{border:1px solid var(--border);border-radius:3px;padding:8px 10px;margin:6px 0;
+  background:rgba(155,89,182,.05);font-size:.72em}
+.tool-card-header{color:var(--purple);cursor:pointer;user-select:none;display:flex;justify-content:space-between}
+.tool-card-header:hover{text-shadow:0 0 6px var(--purple)}
+.tool-card-body{margin-top:6px;color:var(--grey);white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto}
+.tool-card-body.collapsed{display:none}
+
+/* Token counter */
+.token-info{font-size:.6em;color:var(--grey);text-align:right;margin-top:2px;opacity:.7}
+
+/* Streaming cursor */
+.streaming-cursor{display:inline-block;width:8px;height:1em;background:var(--green);margin-left:2px;
+  vertical-align:text-bottom;animation:blink 1s infinite}
+@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+
 @media(max-width:1024px){.app{flex-direction:column}
   #sidebar{width:100%;min-width:0;flex-direction:row;flex-wrap:wrap;gap:8px;padding:8px 10px;border-right:none;border-bottom:2px solid var(--border);align-items:center;justify-content:space-between}
   .sidebar-header{border-bottom:none;padding-bottom:0}.sidebar-header h1{font-size:.85em;letter-spacing:2px}.sidebar-header .subtitle{display:none}
@@ -124,7 +169,7 @@ html,body{height:100%;width:100%;overflow:hidden;
     <div id="input-bar">
       <button id="btn-mic" onclick="toggleMic()" title="Voice input">🎤</button>
       <textarea id="msg-input" rows="1" placeholder="Enter command..."></textarea>
-      <button id="btn-send" onclick="sendMessage()">SEND</button>
+      <button id="btn-send" onclick="onSendClick()">SEND</button>
       <button id="btn-tts" onclick="toggleTTS()" title="Toggle speech output">🔊</button>
     </div>
   </div>
@@ -132,14 +177,38 @@ html,body{height:100%;width:100%;overflow:hidden;
 <div id="config-overlay">
   <div id="config-panel">
     <h2>CONFIGURATION</h2>
-    <label>LLM Endpoint (llama.cpp server)
-      <input type="text" id="cfg-endpoint" placeholder="http://localhost:8080/v1">
+
+    <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROVIDER PRESET</div>
+    <div class="preset-row">
+      <button class="preset-chip" onclick="applyPreset('deepseek-flash')">DeepSeek Flash</button>
+      <button class="preset-chip" onclick="applyPreset('deepseek-pro')">DeepSeek Pro</button>
+      <button class="preset-chip" onclick="applyPreset('openai')">OpenAI</button>
+      <button class="preset-chip" onclick="applyPreset('llamacpp')">llama.cpp</button>
+      <button class="preset-chip" onclick="applyPreset('custom')">Custom</button>
+    </div>
+
+    <label>LLM Endpoint
+      <input type="text" id="cfg-endpoint" placeholder="https://api.deepseek.com">
     </label>
     <label>LLM Model
-      <input type="text" id="cfg-model" placeholder="llama-3.2-3b">
+      <input type="text" id="cfg-model" placeholder="deepseek-v4-flash">
     </label>
-    <label>API Key (if needed)
-      <input type="text" id="cfg-apikey" placeholder="sk-... or leave empty">
+    <label>API Key
+      <div class="input-with-btn">
+        <input type="password" id="cfg-apikey" placeholder="sk-...">
+        <button type="button" class="toggle-btn" id="apikey-toggle" onclick="toggleApikeyVisibility()">SHOW</button>
+      </div>
+    </label>
+
+    <label class="row-chk"><span>Streaming responses</span><input type="checkbox" id="cfg-stream" checked></label>
+    <label class="row-chk"><span>Thinking mode (DeepSeek v4-pro)</span><input type="checkbox" id="cfg-thinking"></label>
+    <label>Reasoning effort
+      <select id="cfg-effort">
+        <option value="high">high (balanced)</option>
+        <option value="max">max (best, slowest)</option>
+        <option value="medium">medium</option>
+        <option value="low">low</option>
+      </select>
     </label>
 
     <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
@@ -192,21 +261,36 @@ html,body{height:100%;width:100%;overflow:hidden;
 // ═══════════════════════════════════════════════
 
 const DEFAULTS = {
-  endpoint:'http://localhost:8080/v1', model:'', apikey:'', bridgeServer:'http://localhost:9191',
+  provider:'deepseek-flash',
+  endpoint:'https://api.deepseek.com', model:'deepseek-v4-flash', apikey:'', bridgeServer:'http://localhost:9191',
+  streamEnabled:true, thinkingEnabled:false, reasoningEffort:'high',
   sttProvider:'web-speech', sttEndpoint:'',
   ttsProvider:'web-speech', ttsEndpoint:'', ttsVoice:'default',
   systemPrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
   memTools:true, weatherEnabled:false, weatherLat:'52.52', weatherLon:'13.41', weatherCity:'Berlin'
 };
 
+const PRESETS = {
+  'deepseek-flash': {provider:'deepseek-flash', endpoint:'https://api.deepseek.com', model:'deepseek-v4-flash', thinkingEnabled:false},
+  'deepseek-pro':   {provider:'deepseek-pro',   endpoint:'https://api.deepseek.com', model:'deepseek-v4-pro',   thinkingEnabled:true,  reasoningEffort:'high'},
+  'openai':         {provider:'openai',         endpoint:'https://api.openai.com/v1', model:'gpt-4o',          thinkingEnabled:false},
+  'llamacpp':       {provider:'llamacpp',       endpoint:'http://localhost:8080/v1',  model:'',                 thinkingEnabled:false},
+  'custom':         {provider:'custom',         endpoint:'',                          model:'',                 thinkingEnabled:false}
+};
+
 let cfg = loadConfig();
 let ttsEnabled = false, isSpeaking = false;
-let currentAudio = null;
 let recognition = null, isRecording = false;
-let bridgeHandle = null; // FileSystemDirectoryHandle (Chrome) or null (Firefox)
-let bridgeMode = 'none'; // 'fsa' = File System Access (Chrome), 'server' = local bridge server (Firefox), 'none' = not connected
+let bridgeHandle = null;
+let bridgeMode = 'none';
 let bridgePollInterval = null;
-let activeMemory = '';
+let activeMemory = loadActiveMemory();
+let conversationMessages = loadConversation();
+let memoryFiles = loadMemoryFiles();
+let currentAbortController = null;
+let isGenerating = false;
+let lastEmergencyHash = '';
+let sessionTokenCount = 0;
 
 function loadConfig() {
   try { const raw = localStorage.getItem('teletraan-config'); if (raw) return {...DEFAULTS,...JSON.parse(raw)}; } catch(e){}
@@ -214,11 +298,63 @@ function loadConfig() {
 }
 function saveConfig() { localStorage.setItem('teletraan-config', JSON.stringify(cfg)); }
 
+// Persistence helpers
+function loadConversation() {
+  try { const raw = localStorage.getItem('teletraan-conversation'); if (raw) return JSON.parse(raw).slice(-40); } catch(e){}
+  return [];
+}
+function saveConversation() {
+  try { localStorage.setItem('teletraan-conversation', JSON.stringify(conversationMessages.slice(-40))); } catch(e){}
+}
+function loadMemoryFiles() {
+  try { const raw = localStorage.getItem('teletraan-memory-files'); if (raw) return JSON.parse(raw); } catch(e){}
+  return {};
+}
+function saveMemoryFiles() {
+  try { localStorage.setItem('teletraan-memory-files', JSON.stringify(memoryFiles)); } catch(e){}
+}
+function loadActiveMemory() {
+  return localStorage.getItem('teletraan-active-memory') || '';
+}
+function saveActiveMemory() {
+  try { localStorage.setItem('teletraan-active-memory', activeMemory); } catch(e){}
+}
+
+function applyPreset(name) {
+  const p = PRESETS[name];
+  if (!p) return;
+  cfg.provider = name;
+  cfg.endpoint = p.endpoint;
+  cfg.model = p.model;
+  cfg.thinkingEnabled = !!p.thinkingEnabled;
+  if (p.reasoningEffort) cfg.reasoningEffort = p.reasoningEffort;
+  document.getElementById('cfg-endpoint').value = p.endpoint;
+  document.getElementById('cfg-model').value = p.model;
+  document.getElementById('cfg-thinking').checked = !!p.thinkingEnabled;
+  if (p.reasoningEffort) document.getElementById('cfg-effort').value = p.reasoningEffort;
+  document.querySelectorAll('.preset-chip').forEach(el => el.classList.remove('active'));
+  const idx = ['deepseek-flash','deepseek-pro','openai','llamacpp','custom'].indexOf(name);
+  if (idx >= 0) document.querySelectorAll('.preset-chip')[idx].classList.add('active');
+  saveConfig();
+  updateStatus();
+  addMessage('system','Preset: '+name+' (API key preserved)');
+}
+
+function toggleApikeyVisibility() {
+  const inp = document.getElementById('cfg-apikey');
+  const btn = document.getElementById('apikey-toggle');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = 'HIDE'; }
+  else { inp.type = 'password'; btn.textContent = 'SHOW'; }
+}
+
 function applyConfig() {
   cfg.endpoint = document.getElementById('cfg-endpoint').value.trim() || DEFAULTS.endpoint;
   cfg.model = document.getElementById('cfg-model').value.trim() || DEFAULTS.model;
   cfg.apikey = document.getElementById('cfg-apikey').value.trim() || '';
   cfg.bridgeServer = document.getElementById('cfg-bridge-server').value.trim() || 'http://localhost:9191';
+  cfg.streamEnabled = document.getElementById('cfg-stream').checked;
+  cfg.thinkingEnabled = document.getElementById('cfg-thinking').checked;
+  cfg.reasoningEffort = document.getElementById('cfg-effort').value || 'high';
   cfg.sttProvider = document.getElementById('cfg-stt-provider').value;
   cfg.sttEndpoint = document.getElementById('cfg-stt-endpoint').value.trim();
   cfg.ttsProvider = document.getElementById('cfg-tts-provider').value;
@@ -244,6 +380,9 @@ function populateConfigFields() {
   document.getElementById('cfg-model').value = cfg.model;
   document.getElementById('cfg-apikey').value = cfg.apikey;
   document.getElementById('cfg-bridge-server').value = cfg.bridgeServer;
+  document.getElementById('cfg-stream').checked = cfg.streamEnabled;
+  document.getElementById('cfg-thinking').checked = cfg.thinkingEnabled;
+  document.getElementById('cfg-effort').value = cfg.reasoningEffort || 'high';
   document.getElementById('cfg-stt-provider').value = cfg.sttProvider;
   document.getElementById('cfg-stt-endpoint').value = cfg.sttEndpoint;
   document.getElementById('cfg-tts-provider').value = cfg.ttsProvider;
@@ -255,6 +394,9 @@ function populateConfigFields() {
   document.getElementById('cfg-weather-lat').value = cfg.weatherLat;
   document.getElementById('cfg-weather-lon').value = cfg.weatherLon;
   document.getElementById('cfg-weather-city').value = cfg.weatherCity;
+  document.querySelectorAll('.preset-chip').forEach(el => el.classList.remove('active'));
+  const idx = ['deepseek-flash','deepseek-pro','openai','llamacpp','custom'].indexOf(cfg.provider);
+  if (idx >= 0) document.querySelectorAll('.preset-chip')[idx].classList.add('active');
 }
 
 // ═══════════════════════════════════════════════
@@ -301,7 +443,7 @@ function initCanvas() {
 // ═══════════════════════════════════════════════
 // TERMINAL
 // ═══════════════════════════════════════════════
-function addMessage(type, text) {
+function addMessage(type, text, silent) {
   const term = document.getElementById('terminal');
   const el = document.createElement('div');
   el.className = 'msg msg-' + type;
@@ -311,9 +453,9 @@ function addMessage(type, text) {
   if (type==='error') prefix='ERROR: ';
   if (type==='incoming') prefix='INCOMING: ';
   if (type==='tool') prefix='[tool] ';
-  if (type==='ai') {
+  if (type==='ai' && !silent) {
     el.textContent = prefix; term.appendChild(el); scrollDown();
-    typeText(el, text, 0, () => { console.log('typeText done, ttsEnabled='+ttsEnabled+', provider='+cfg.ttsProvider); if (ttsEnabled) ttsSpeak(text); });
+    typeText(el, text, 0, () => { if (ttsEnabled && cfg.ttsProvider==='web-speech') ttsSpeak(text); });
   } else {
     el.textContent = prefix + text; term.appendChild(el); scrollDown();
   }
@@ -504,21 +646,27 @@ function startBridgePolling() {
 
 async function checkEmergencyFlag() {
   const flag = await readEmergencyFlag();
-  if (flag && flag.trim()) {
-    addMessage('incoming','EMERGENCY SIGNAL DETECTED: ' + flag.trim());
-    document.getElementById('status-text').textContent = 'EMERGENCY';
-    document.getElementById('dot-status').className = 'dot red';
-    const emergencyMsg = 'EMERGENCY! The user has triggered the emergency button. Message: ' + flag.trim() + '\nRespond immediately with support and guidance. Check their state and give tactical advice.';
-    addMessage('system','Auto-dispatching emergency response...');
-    try {
-      const resp = await sendToLLM(emergencyMsg, true);
-      addMessage('ai', resp);
-    } catch(e) {
-      addMessage('error', e.message);
-    }
-    document.getElementById('status-text').textContent = 'ONLINE';
-    document.getElementById('dot-status').className = 'dot green';
+  if (!flag || !flag.trim()) {
+    lastEmergencyHash = '';
+    return;
   }
+  const hash = flag.trim().length + ':' + flag.trim().substring(0, 100);
+  if (hash === lastEmergencyHash) return;
+  lastEmergencyHash = hash;
+
+  addMessage('incoming','EMERGENCY SIGNAL DETECTED: ' + flag.trim());
+  document.getElementById('status-text').textContent = 'EMERGENCY';
+  document.getElementById('dot-status').className = 'dot red';
+  const emergencyMsg = 'EMERGENCY! The user has triggered the emergency button. Message: ' + flag.trim() + '\nRespond immediately with support and guidance. Check their state and give tactical advice.';
+  addMessage('system','Auto-dispatching emergency response...');
+  try {
+    const resp = await sendToLLM(emergencyMsg, true);
+    addMessage('ai', resp);
+  } catch(e) {
+    addMessage('error', e.message);
+  }
+  document.getElementById('status-text').textContent = 'ONLINE';
+  document.getElementById('dot-status').className = 'dot green';
 }
 
 // ═══════════════════════════════════════════════
@@ -558,11 +706,11 @@ function getBuiltinTools() {
 // ═══════════════════════════════════════════════
 // TOOL EXECUTION (matching agora-desktop)
 // ═══════════════════════════════════════════════
-const memoryFiles = {}; // In-memory store (agora-desktop uses disk, we use memory + optional localStorage)
 
 async function executeTool(name, argsStr) {
   let args = {};
-  try { args = JSON.parse(argsStr || '{}'); } catch(e) {}
+  try { args = JSON.parse(argsStr || '{}'); }
+  catch(e) { return 'Error parsing arguments: ' + e.message + ' (raw: ' + (argsStr||'').substring(0,200) + ')'; }
 
   if (name === 'update_active_memory') {
     const content = args.content || '';
@@ -571,6 +719,7 @@ async function executeTool(name, argsStr) {
     else if (mode === 'append') activeMemory += '\n' + content;
     else if (mode === 'prepend') activeMemory = content + '\n' + activeMemory;
     else if (mode === 'patch') activeMemory = activeMemory.replace(content, '');
+    saveActiveMemory();
     return 'Active memory updated (mode: '+mode+'). Current active memory:\n'+activeMemory;
   }
   if (name === 'list_memory_files') {
@@ -584,10 +733,12 @@ async function executeTool(name, argsStr) {
   if (name === 'create_memory_file') {
     const fname = args.name || '', content = args.content || '';
     memoryFiles[fname] = content;
+    saveMemoryFiles();
     return 'Memory file created: '+fname;
   }
   if (name === 'delete_memory_file') {
     delete memoryFiles[args.name || ''];
+    saveMemoryFiles();
     return 'Memory file deleted: '+(args.name||'');
   }
 
@@ -730,161 +881,386 @@ async function resolveVariables(template) {
 }
 
 // ═══════════════════════════════════════════════
-// LLM API CALL (llama.cpp / OpenAI-compatible)
+// LLM API CALL — streaming + thinking mode + tool calls
 // ═══════════════════════════════════════════════
-let conversationMessages = [];
 
-async function sendToLLM(userMessage, isEmergency) {
-  if (!cfg.model) throw new Error('No model configured. Set model in CONFIG.');
-
-  const tools = getBuiltinTools();
-  const systemPrompt = await resolveVariables(cfg.systemPrompt);
-
-  // Build messages
-  const messages = [];
-  messages.push({role:'system', content:systemPrompt});
-
-  // Add active memory if non-empty
-  if (activeMemory) {
-    messages.push({role:'system', content:'<active_memory>\n'+activeMemory+'\n</active_memory>'});
-  }
-
-  // Add conversation history (last 20 user/assistant exchanges)
-  const recent = conversationMessages.slice(-40);
-  for (const m of recent) {
-    messages.push(m);
-  }
-
-  // Add current user message
-  messages.push({role:'user', content:userMessage});
-
-  // API call
-  let endpoint = cfg.endpoint.replace(/\/+$/, '');
-  const url = endpoint + '/chat/completions';
-
-  const headers = {'Content-Type':'application/json'};
-  if (cfg.apikey) headers['Authorization'] = 'Bearer ' + cfg.apikey;
-
+function buildRequestBody(messages, tools) {
   const body = {
     model: cfg.model,
     messages: messages,
-    stream: false,
-    temperature: 0.7,
-    max_tokens: 1024,
+    stream: cfg.streamEnabled,
   };
-  if (tools.length > 0) body.tools = tools;
-
-  const res = await fetch(url, {
-    method:'POST', headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(90000)
-  });
-
-  if (!res.ok) {
-    if (res.status === 404) throw new Error('Unable to contact Cybertron command. Check endpoint.');
-    throw new Error('Network error. Verify endpoint. ('+res.status+')');
+  if (cfg.thinkingEnabled) {
+    body.thinking = {type: 'enabled'};
+    body.reasoning_effort = cfg.reasoningEffort || 'high';
+    body.max_tokens = 4096;
+  } else {
+    body.temperature = 0.7;
+    body.top_p = 1.0;
+    body.max_tokens = 2048;
   }
-
-  const data = await res.json();
-  const choice = data.choices && data.choices[0];
-  if (!choice) throw new Error('No response. Retry.');
-
-  const msg = choice.message;
-
-  // Handle tool calls
-  if (msg.tool_calls && msg.tool_calls.length > 0) {
-    // Save assistant message with tool calls
-    conversationMessages.push({role:'assistant', content:msg.content||'', tool_calls:msg.tool_calls});
-
-    for (const tc of msg.tool_calls) {
-      const fn = tc.function;
-      addMessage('tool', fn.name + '(' + fn.arguments + ')');
-      const result = await executeTool(fn.name, fn.arguments);
-      addMessage('tool', '→ ' + (result.length > 200 ? result.substring(0,200)+'...' : result));
-
-      // Add tool result message
-      conversationMessages.push({role:'tool', tool_call_id:tc.id, content:result});
-    }
-
-    // Send follow-up to get final response
-    return await continueWithToolResults(isEmergency);
-  }
-
-  // Save response
-  const content = msg.content || '';
-  conversationMessages.push({role:'assistant', content:content});
-
-  // Trim history
-  if (conversationMessages.length > 60) {
-    conversationMessages = conversationMessages.slice(-40);
-  }
-
-  if (!content.trim()) throw new Error('No response. Retry.');
-  return content;
+  if (tools && tools.length > 0) body.tools = tools;
+  return body;
 }
 
-async function continueWithToolResults(isEmergency) {
+// Fetch with retry. currentAbortController stays alive after fetch returns so the
+// streaming reader loop can still be aborted by STOP. Caller nulls it via streamChat's finally.
+async function fetchWithRetry(url, options, maxRetries) {
+  maxRetries = maxRetries || 3;
+  let lastError;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      currentAbortController = controller;
+      const timeout = setTimeout(() => controller.abort(), 120000);
+      const res = await fetch(url, Object.assign({}, options, {signal: controller.signal}));
+      clearTimeout(timeout);
+      if ((res.status === 429 || res.status >= 500) && attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return res;
+    } catch(e) {
+      currentAbortController = null;
+      lastError = e;
+      if (e.name === 'AbortError') throw e;
+      if (attempt < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
+        continue;
+      }
+    }
+  }
+  throw lastError;
+}
+
+async function parseError(res) {
+  let detail = '';
+  try {
+    const err = await res.json();
+    detail = (err.error && err.error.message) || err.message || JSON.stringify(err);
+  } catch(e) {
+    try { detail = await res.text(); } catch(e2) {}
+  }
+  if (!detail) detail = 'HTTP ' + res.status;
+  return detail;
+}
+
+function mergeToolCallDelta(existing, delta) {
+  if (!existing) {
+    return {
+      index: delta.index || 0,
+      id: delta.id || '',
+      type: delta.type || 'function',
+      function: {name: (delta.function && delta.function.name) || '', arguments: (delta.function && delta.function.arguments) || ''}
+    };
+  }
+  if (delta.function) {
+    if (!existing.function) existing.function = {name:'', arguments:''};
+    if (delta.function.name) existing.function.name += delta.function.name;
+    if (delta.function.arguments) existing.function.arguments += delta.function.arguments;
+  }
+  if (delta.id && !existing.id) existing.id = delta.id;
+  if (delta.type && !existing.type) existing.type = delta.type;
+  return existing;
+}
+
+async function streamChat(messages, tools, callbacks) {
+  const onReasoning = callbacks.onReasoning || function(){};
+  const onContent = callbacks.onContent || function(){};
+  const onToolCalls = callbacks.onToolCalls || function(){};
+  const onDone = callbacks.onDone || function(){};
+
+  const url = cfg.endpoint.replace(/\/+$/, '') + '/chat/completions';
+  const headers = {'Content-Type':'application/json'};
+  if (cfg.apikey) headers['Authorization'] = 'Bearer ' + cfg.apikey;
+  const body = buildRequestBody(messages, tools);
+
+  const res = await fetchWithRetry(url, {method:'POST', headers, body: JSON.stringify(body)});
+  if (!res.ok) {
+    const detail = await parseError(res);
+    throw new Error(detail);
+  }
+
+  if (!cfg.streamEnabled) {
+    try {
+      const data = await res.json();
+      const choice = data.choices && data.choices[0];
+      if (!choice) throw new Error('No response. Retry.');
+      const msg = choice.message || {};
+      if (msg.reasoning_content) onReasoning(msg.reasoning_content);
+      if (msg.content) onContent(msg.content);
+      if (msg.tool_calls && msg.tool_calls.length) onToolCalls(msg.tool_calls);
+      onDone(msg);
+      return msg;
+    } finally {
+      currentAbortController = null;
+    }
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let reasoning = '', content = '';
+  let toolCalls = [];
+  const finalMsg = {role:'assistant', content:'', reasoning_content:''};
+
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, {stream:true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
+          if (!delta) continue;
+          if (delta.reasoning_content) {
+            reasoning += delta.reasoning_content;
+            finalMsg.reasoning_content = reasoning;
+            onReasoning(delta.reasoning_content);
+          }
+          if (delta.content) {
+            content += delta.content;
+            finalMsg.content = content;
+            onContent(delta.content);
+          }
+          if (delta.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index || 0;
+              toolCalls[idx] = mergeToolCallDelta(toolCalls[idx] || null, tc);
+            }
+          }
+        } catch(e) {}
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch(e) {}
+    currentAbortController = null;
+  }
+
+  if (toolCalls.length > 0) {
+    finalMsg.tool_calls = toolCalls.filter(function(tc){return !!tc;});
+    onToolCalls(finalMsg.tool_calls);
+  }
+  onDone(finalMsg);
+  return finalMsg;
+}
+
+async function sendToLLM(userMessage, isEmergency) {
+  if (!cfg.model) throw new Error('No model configured. Set model in CONFIG.');
   const tools = getBuiltinTools();
   const systemPrompt = await resolveVariables(cfg.systemPrompt);
 
   const messages = [];
   messages.push({role:'system', content:systemPrompt});
   if (activeMemory) messages.push({role:'system', content:'<active_memory>\n'+activeMemory+'\n</active_memory>'});
+  const recent = conversationMessages.slice(-40);
+  for (const m of recent) messages.push(m);
+  messages.push({role:'user', content:userMessage});
 
+  const ui = createStreamingMessage();
+  let reasoningText = '', contentText = '';
+
+  const msg = await streamChat(messages, tools, {
+    onReasoning: function(delta) { reasoningText += delta; ui.updateReasoning(reasoningText); },
+    onContent: function(delta) { contentText += delta; ui.updateContent(contentText); },
+    onToolCalls: function(tcs) {}
+  });
+
+  const tokens = Math.ceil((reasoningText.length + contentText.length) / 4);
+  sessionTokenCount += tokens;
+  ui.finalize(tokens);
+
+  if (msg.tool_calls && msg.tool_calls.length > 0) {
+    // CRITICAL (v4-pro fix): preserve reasoning_content for DeepSeek thinking mode tool calls
+    conversationMessages.push({
+      role:'assistant',
+      content: msg.content || '',
+      reasoning_content: msg.reasoning_content || undefined,
+      tool_calls: msg.tool_calls
+    });
+
+    for (const tc of msg.tool_calls) {
+      const fn = tc.function;
+      if (!tc.id) tc.id = 'call_' + Math.random().toString(36).slice(2);
+      addToolCard(fn.name, fn.arguments);
+      const result = await executeTool(fn.name, fn.arguments);
+      updateToolCard(fn.name, result);
+      conversationMessages.push({role:'tool', tool_call_id: tc.id, content: result});
+    }
+
+    saveConversation();
+    return await continueWithToolResults(isEmergency, 1);
+  }
+
+  // No tool calls: check empty BEFORE pushing (v4-pro fix to avoid corrupting history)
+  const content = msg.content || '';
+  if (!content.trim()) throw new Error('No response. Retry.');
+  conversationMessages.push({role:'assistant', content: content});
+  if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
+  saveConversation();
+
+  if (ttsEnabled && cfg.ttsProvider === 'web-speech') ttsSpeak(content);
+  return content;
+}
+
+async function continueWithToolResults(isEmergency, depth) {
+  depth = depth || 1;
+  if (depth >= 5) {
+    conversationMessages.push({role:'assistant', content:'(Too many tool call rounds. Stopping.)'});
+    saveConversation();
+    return 'Multiple tool iterations complete. Ask the user for further direction.';
+  }
+
+  const tools = getBuiltinTools();
+  const systemPrompt = await resolveVariables(cfg.systemPrompt);
+  const messages = [];
+  messages.push({role:'system', content:systemPrompt});
+  if (activeMemory) messages.push({role:'system', content:'<active_memory>\n'+activeMemory+'\n</active_memory>'});
   const recent = conversationMessages.slice(-50);
   for (const m of recent) messages.push(m);
 
-  let endpoint = cfg.endpoint.replace(/\/+$/, '');
-  const url = endpoint + '/chat/completions';
-  const headers = {'Content-Type':'application/json'};
-  if (cfg.apikey) headers['Authorization'] = 'Bearer ' + cfg.apikey;
+  const ui = createStreamingMessage();
+  let reasoningText = '', contentText = '';
 
-  const body = {
-    model: cfg.model,
-    messages: messages,
-    stream: false,
-    temperature: 0.7,
-    max_tokens: 1024,
-  };
-  if (tools.length > 0) body.tools = tools;
-
-  const res = await fetch(url, {
-    method:'POST', headers,
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(90000)
+  const msg = await streamChat(messages, tools, {
+    onReasoning: function(delta) { reasoningText += delta; ui.updateReasoning(reasoningText); },
+    onContent: function(delta) { contentText += delta; ui.updateContent(contentText); },
+    onToolCalls: function(tcs) {}
   });
-  if (!res.ok) throw new Error('Network error on follow-up. ('+res.status+')');
 
-  const data = await res.json();
-  const choice = data.choices && data.choices[0];
-  if (!choice) throw new Error('No response. Retry.');
+  const tokens = Math.ceil((reasoningText.length + contentText.length) / 4);
+  sessionTokenCount += tokens;
+  ui.finalize(tokens);
 
-  const msg = choice.message;
-
-  // Handle further tool calls (recursive, max 5 rounds)
   if (msg.tool_calls && msg.tool_calls.length > 0) {
-    const rounds = conversationMessages.filter(m=>m.role==='assistant'&&m.tool_calls).length;
-    if (rounds >= 5) {
-      conversationMessages.push({role:'assistant', content:'(Too many tool call rounds. Stopping.)'});
-      return 'Multiple tool iterations complete. Ask the user for further direction.';
-    }
-    conversationMessages.push({role:'assistant', content:msg.content||'', tool_calls:msg.tool_calls});
+    conversationMessages.push({
+      role:'assistant',
+      content: msg.content || '',
+      reasoning_content: msg.reasoning_content || undefined,
+      tool_calls: msg.tool_calls
+    });
     for (const tc of msg.tool_calls) {
       const fn = tc.function;
-      addMessage('tool', fn.name + '(' + fn.arguments + ')');
+      if (!tc.id) tc.id = 'call_' + Math.random().toString(36).slice(2);
+      addToolCard(fn.name, fn.arguments);
       const result = await executeTool(fn.name, fn.arguments);
-      addMessage('tool', '→ ' + (result.length > 200 ? result.substring(0,200)+'...' : result));
-      conversationMessages.push({role:'tool', tool_call_id:tc.id, content:result});
+      updateToolCard(fn.name, result);
+      conversationMessages.push({role:'tool', tool_call_id: tc.id, content: result});
     }
-    return await continueWithToolResults(isEmergency);
+    saveConversation();
+    return await continueWithToolResults(isEmergency, depth + 1);
   }
 
   const content = msg.content || '';
-  conversationMessages.push({role:'assistant', content:content});
-  if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
   if (!content.trim()) throw new Error('No response. Retry.');
+  conversationMessages.push({role:'assistant', content: content});
+  if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
+  saveConversation();
+
+  if (ttsEnabled && cfg.ttsProvider === 'web-speech') ttsSpeak(content);
   return content;
 }
+
+function createStreamingMessage() {
+  const term = document.getElementById('terminal');
+  const wrapper = document.createElement('div');
+  wrapper.className = 'msg msg-ai';
+
+  const reasoningEl = document.createElement('div');
+  reasoningEl.className = 'msg-reasoning';
+  reasoningEl.style.display = 'none';
+  const reasoningHeader = document.createElement('div');
+  reasoningHeader.className = 'reasoning-header';
+  reasoningHeader.textContent = '▶ THINKING';
+  reasoningHeader.onclick = function() {
+    const body = reasoningEl.querySelector('.reasoning-body');
+    if (body) {
+      body.classList.toggle('collapsed');
+      reasoningHeader.textContent = body.classList.contains('collapsed') ? '▶ THINKING' : '▼ THINKING';
+    }
+  };
+  const reasoningBody = document.createElement('div');
+  reasoningBody.className = 'reasoning-body collapsed';
+  reasoningEl.appendChild(reasoningHeader);
+  reasoningEl.appendChild(reasoningBody);
+
+  const contentEl = document.createElement('div');
+  contentEl.style.marginTop = '4px';
+  contentEl.textContent = 'TELETRAAN-1: ';
+
+  const cursor = document.createElement('span');
+  cursor.className = 'streaming-cursor';
+
+  wrapper.appendChild(reasoningEl);
+  wrapper.appendChild(contentEl);
+  contentEl.appendChild(cursor);
+  term.appendChild(wrapper);
+  scrollDown();
+
+  return {
+    updateReasoning: function(text) {
+      reasoningEl.style.display = 'block';
+      reasoningBody.textContent = text;
+      scrollDown();
+    },
+    updateContent: function(text) {
+      contentEl.textContent = 'TELETRAAN-1: ' + text;
+      contentEl.appendChild(cursor);
+      scrollDown();
+    },
+    finalize: function(tokens) {
+      if (cursor.parentNode) cursor.parentNode.removeChild(cursor);
+      if (!reasoningBody.textContent) reasoningEl.style.display = 'none';
+      else {
+        reasoningHeader.textContent = '▶ THINKING (' + tokens + ' tokens)';
+      }
+      const tokInfo = document.createElement('div');
+      tokInfo.className = 'token-info';
+      tokInfo.textContent = '~' + tokens + ' tokens';
+      wrapper.appendChild(tokInfo);
+      scrollDown();
+    }
+  };
+}
+
+function addToolCard(name, args) {
+  const term = document.getElementById('terminal');
+  const card = document.createElement('div');
+  card.className = 'msg-tool-card';
+  card.dataset.toolName = name;
+  const header = document.createElement('div');
+  header.className = 'tool-card-header';
+  header.innerHTML = '<span>🔧 ' + name + '</span><span style="font-size:.8em">executing...</span>';
+  const body = document.createElement('div');
+  body.className = 'tool-card-body collapsed';
+  body.textContent = 'args: ' + args;
+  header.onclick = function() {
+    body.classList.toggle('collapsed');
+  };
+  card.appendChild(header);
+  card.appendChild(body);
+  term.appendChild(card);
+  scrollDown();
+}
+
+function updateToolCard(name, result) {
+  const cards = document.querySelectorAll('.msg-tool-card[data-tool-name="' + name + '"]');
+  const card = cards[cards.length - 1];
+  if (!card) return;
+  const header = card.querySelector('.tool-card-header');
+  const body = card.querySelector('.tool-card-body');
+  if (header) header.querySelector('span:last-child').textContent = 'done';
+  if (body) body.textContent = body.textContent + '\n→ ' + (result.length > 500 ? result.substring(0,500) + '...' : result);
+}
+
 
 // ═══════════════════════════════════════════════
 // MORNING BRIEF
@@ -943,6 +1319,7 @@ async function runMorningBrief() {
   brief += 'Use this context naturally in conversation. If the user seems stressed or entropy is high, lead with support, not tasks.';
 
   activeMemory = brief;
+  saveActiveMemory();
   addMessage('system','Morning brief generated. Active memory updated.');
   addMessage('incoming', brief);
   document.getElementById('proto-bridge').textContent = 'BRIEFED';
@@ -952,7 +1329,10 @@ async function runMorningBrief() {
 async function fetchWeather(lat, lon) {
   const url = 'https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(4)+'&longitude='+lon.toFixed(4)+'&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=1';
   try {
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, {signal: controller.signal});
+    clearTimeout(timeout);
     if (!res.ok) return {valid:false};
     const j = await res.json();
     if (!j.daily) return {valid:false};
@@ -984,8 +1364,26 @@ async function fetchWeather(lat, lon) {
 }
 
 // ═══════════════════════════════════════════════
-// SEND MESSAGE
+// SEND MESSAGE / STOP
 // ═══════════════════════════════════════════════
+function onSendClick() {
+  if (isGenerating) {
+    if (currentAbortController) {
+      try { currentAbortController.abort(); } catch(e) {}
+      currentAbortController = null;
+    }
+    isGenerating = false;
+    const btn = document.getElementById('btn-send');
+    btn.classList.remove('stopping');
+    btn.textContent = 'SEND';
+    document.getElementById('status-text').textContent = 'ONLINE';
+    document.getElementById('dot-status').className = 'dot green';
+    addMessage('system','Generation stopped.');
+    return;
+  }
+  sendMessage();
+}
+
 async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input.value.trim();
@@ -993,24 +1391,31 @@ async function sendMessage() {
   input.value = ''; input.style.height = 'auto';
 
   addMessage('user', text);
-  document.getElementById('btn-send').disabled = true;
-  document.getElementById('btn-send').textContent = '...';
+  isGenerating = true;
+  const btn = document.getElementById('btn-send');
+  btn.classList.add('stopping');
+  btn.textContent = 'STOP';
   document.getElementById('status-text').textContent = 'PROCESSING...';
   document.getElementById('dot-status').className = 'dot red';
 
+  // AI response is rendered inside sendToLLM via createStreamingMessage() — no addMessage('ai') here.
   try {
-    const response = await sendToLLM(text, false);
-    addMessage('ai', response);
+    await sendToLLM(text, false);
     document.getElementById('status-text').textContent = 'ONLINE';
     document.getElementById('dot-status').className = 'dot green';
   } catch(err) {
-    addMessage('error', err.message);
+    if (err.name === 'AbortError') {
+      addMessage('system','(aborted)');
+    } else {
+      addMessage('error', err.message);
+    }
     document.getElementById('status-text').textContent = 'ONLINE';
     document.getElementById('dot-status').className = 'dot green';
   }
 
-  document.getElementById('btn-send').disabled = false;
-  document.getElementById('btn-send').textContent = 'SEND';
+  isGenerating = false;
+  btn.classList.remove('stopping');
+  btn.textContent = 'SEND';
   input.focus();
 }
 
@@ -1024,23 +1429,22 @@ function toggleMic() {
 function sttListen() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { addMessage('error','Speech recognition unavailable.'); return; }
-  if (!recognition) {
-    recognition = new SR();
-    recognition.continuous = false; recognition.interimResults = true; recognition.lang = 'en-US';
-    recognition.onresult = (e) => {
-      let interim='', final='';
-      for (let i=e.resultIndex;i<e.results.length;i++) { if(e.results[i].isFinal) final+=e.results[i][0].transcript; else interim+=e.results[i][0].transcript; }
-      const input=document.getElementById('msg-input'); input.value=final||interim; input.style.color=final?'':'var(--grey)';
-      if (final) { stopListening(); sendMessage(); }
-    };
-    recognition.onerror = (e) => { stopListening(); addMessage('error','Speech recognition error: '+e.error); };
-    recognition.onend = () => { stopListening(); };
-  }
+  // Always create fresh instance (reusing after error fails silently)
+  recognition = new SR();
+  recognition.continuous = false; recognition.interimResults = true; recognition.lang = 'en-US';
+  recognition.onresult = (e) => {
+    let interim='', final='';
+    for (let i=e.resultIndex;i<e.results.length;i++) { if(e.results[i].isFinal) final+=e.results[i][0].transcript; else interim+=e.results[i][0].transcript; }
+    const input=document.getElementById('msg-input'); input.value=final||interim; input.style.color=final?'':'var(--grey)';
+    if (final) { stopListening(); sendMessage(); }
+  };
+  recognition.onerror = (e) => { stopListening(); addMessage('error','Speech recognition error: '+e.error); };
+  recognition.onend = () => { stopListening(); };
   try { recognition.start(); isRecording=true; document.getElementById('btn-mic').classList.add('recording'); document.getElementById('dot-stt').className='dot red'; }
   catch(e) { stopListening(); }
 }
 function stopListening() {
-  if (recognition) { try{recognition.stop()}catch(e){} }
+  if (recognition) { try{recognition.stop()}catch(e){} recognition = null; }
   isRecording=false; document.getElementById('btn-mic').classList.remove('recording'); document.getElementById('msg-input').style.color='';
   updateProtocols();
 }
@@ -1056,7 +1460,6 @@ function toggleTTS() {
   updateProtocols();
 }
 function ttsSpeak(text) {
-  console.log('ttsSpeak called, provider='+cfg.ttsProvider+', enabled='+ttsEnabled);
   if (!ttsEnabled) return;
   const btn=document.getElementById('btn-tts');
 
@@ -1178,13 +1581,24 @@ function init() {
   if (bridgePath) document.getElementById('cfg-bridge-dir').value = bridgePath;
 
   addMessage('system','Teletraan-1 online. Agora bridge active.');
-  addMessage('system','LLM endpoint: '+cfg.endpoint+' | Model: '+(cfg.model||'not set'));
+  addMessage('system','Provider: '+(cfg.provider||'custom')+' | Model: '+(cfg.model||'not set'));
+  addMessage('system','Endpoint: '+cfg.endpoint+(cfg.thinkingEnabled?' [thinking:'+cfg.reasoningEffort+']':''));
   addMessage('system',browserMsg);
   addMessage('system','Tomogichi bridge: Use CONFIG → SELECT to connect.');
   addMessage('system','Type a message to begin, Ctrl+B for morning brief.');
 
-  if (!cfg.model) addMessage('system','WARNING: No model configured. Set your llama.cpp model in CONFIG.');
+  if (!cfg.apikey && cfg.endpoint.includes('deepseek.com')) addMessage('system','WARNING: No API key set. Get one at platform.deepseek.com/api_keys');
+  if (!cfg.model) addMessage('system','WARNING: No model configured. Set in CONFIG.');
   if (!hasFSA()) addMessage('system','Firefox: run "python3 bridge.py ~/.local/share/tomogichi-qt/" in a terminal first.');
+
+  // Restore previous conversation (silent = no typewriter animation, no TTS) — v4-pro fix
+  if (conversationMessages.length > 0) {
+    addMessage('system','Restored '+conversationMessages.length+' messages from previous session.');
+    for (const m of conversationMessages) {
+      if (m.role === 'user') addMessage('user', m.content, true);
+      else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
+    }
+  }
 }
 
 init();
