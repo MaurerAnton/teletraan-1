@@ -291,6 +291,7 @@ let currentAbortController = null;
 let isGenerating = false;
 let lastEmergencyHash = '';
 let sessionTokenCount = 0;
+let currentAudio = null;
 
 function loadConfig() {
   try { const raw = localStorage.getItem('teletraan-config'); if (raw) return {...DEFAULTS,...JSON.parse(raw)}; } catch(e){}
@@ -455,7 +456,7 @@ function addMessage(type, text, silent) {
   if (type==='tool') prefix='[tool] ';
   if (type==='ai' && !silent) {
     el.textContent = prefix; term.appendChild(el); scrollDown();
-    typeText(el, text, 0, () => { if (ttsEnabled && cfg.ttsProvider==='web-speech') ttsSpeak(text); });
+    typeText(el, text, 0, () => { if (ttsEnabled) ttsSpeak(text); });
   } else {
     el.textContent = prefix + text; term.appendChild(el); scrollDown();
   }
@@ -1107,7 +1108,7 @@ async function sendToLLM(userMessage, isEmergency) {
   if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
   saveConversation();
 
-  if (ttsEnabled && cfg.ttsProvider === 'web-speech') ttsSpeak(content);
+  if (ttsEnabled) ttsSpeak(content);
   return content;
 }
 
@@ -1165,7 +1166,7 @@ async function continueWithToolResults(isEmergency, depth) {
   if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
   saveConversation();
 
-  if (ttsEnabled && cfg.ttsProvider === 'web-speech') ttsSpeak(content);
+  if (ttsEnabled) ttsSpeak(content);
   return content;
 }
 
@@ -1455,54 +1456,100 @@ function stopListening() {
 function toggleTTS() {
   ttsEnabled = !ttsEnabled;
   const btn = document.getElementById('btn-tts');
-  if (ttsEnabled) { btn.classList.add('tts-on'); btn.title='Speech output: ON'; }
-  else { btn.classList.remove('tts-on','tts-speaking'); btn.title='Speech output: OFF'; window.speechSynthesis.cancel(); if(currentAudio){currentAudio.pause();currentAudio=null;} isSpeaking=false; }
+  if (ttsEnabled) {
+    btn.classList.add('tts-on'); btn.title='Speech output: ON';
+  } else {
+    btn.classList.remove('tts-on','tts-speaking');
+    btn.title='Speech output: OFF';
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (currentAudio) { try { currentAudio.pause(); currentAudio.src=''; } catch(e){} currentAudio = null; }
+    isSpeaking = false;
+  }
   updateProtocols();
 }
-function ttsSpeak(text) {
-  if (!ttsEnabled) return;
-  const btn=document.getElementById('btn-tts');
 
-  if (cfg.ttsProvider === 'piper') {
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-    const server = cfg.bridgeServer || 'http://localhost:9191';
-    fetch(server + '/tts', { method: 'POST', body: text })
-      .then(res => { if(!res.ok) throw new Error('TTS failed: '+res.status); return res.blob(); })
-      .then(blob => {
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        currentAudio = audio;
-        btn.classList.add('tts-speaking'); isSpeaking = true;
-        audio.onended = () => {
-          btn.classList.remove('tts-speaking'); isSpeaking = false;
-          URL.revokeObjectURL(url); currentAudio = null;
-        };
-        audio.onerror = () => {
-          btn.classList.remove('tts-speaking'); isSpeaking = false;
-          URL.revokeObjectURL(url); currentAudio = null;
-        };
-        audio.play();
-      })
-      .catch(e => {
-        btn.classList.remove('tts-speaking'); isSpeaking = false;
-        addMessage('error', 'Piper TTS error: ' + e.message);
-      });
-    return;
+async function ttsSpeak(text) {
+  if (!ttsEnabled || !text) return;
+  const btn = document.getElementById('btn-tts');
+
+  // Cancel any in-progress TTS (web-speech or HTML audio)
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  if (currentAudio) { try { currentAudio.pause(); currentAudio.src=''; } catch(e){} currentAudio = null; }
+
+  btn.classList.add('tts-speaking');
+  isSpeaking = true;
+  try {
+    if (cfg.ttsProvider === 'web-speech') {
+      await ttsSpeakWebSpeech(text);
+    } else if (cfg.ttsProvider === 'piper') {
+      const server = (cfg.bridgeServer || 'http://localhost:9191').replace(/\/+$/, '');
+      await ttsSpeakHttp(text, server + '/tts');
+    } else if (cfg.ttsProvider === 'custom') {
+      if (!cfg.ttsEndpoint) throw new Error('No TTS endpoint configured');
+      await ttsSpeakHttp(text, cfg.ttsEndpoint);
+    } else {
+      throw new Error('Unknown TTS provider: ' + cfg.ttsProvider);
+    }
+  } catch(e) {
+    addMessage('error', 'TTS error: ' + e.message);
+  } finally {
+    btn.classList.remove('tts-speaking');
+    isSpeaking = false;
   }
-
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.rate=.95; utter.pitch=1; utter.volume=1;
-  const voices = window.speechSynthesis.getVoices();
-  const preferred = voices.find(v=>v.name.includes(cfg.ttsVoice))||voices.find(v=>v.lang==='en-US'&&v.name.includes('Male'))||voices.find(v=>v.lang.startsWith('en'));
-  if (preferred) utter.voice=preferred;
-  btn.classList.add('tts-speaking'); isSpeaking=true;
-  utter.onend=()=>{btn.classList.remove('tts-speaking');isSpeaking=false;};
-  utter.onerror=()=>{btn.classList.remove('tts-speaking');isSpeaking=false;};
-  window.speechSynthesis.speak(utter);
 }
-if (window.speechSynthesis) { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged=()=>window.speechSynthesis.getVoices(); }
+
+function ttsSpeakWebSpeech(text) {
+  return new Promise((resolve, reject) => {
+    if (!window.speechSynthesis) return reject(new Error('Speech synthesis not available in this browser'));
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 0.95; utter.pitch = 1; utter.volume = 1;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.name.includes(cfg.ttsVoice))
+      || voices.find(v => v.lang === 'en-US' && v.name.includes('Male'))
+      || voices.find(v => v.lang.startsWith('en'));
+    if (preferred) utter.voice = preferred;
+    utter.onend = resolve;
+    utter.onerror = (e) => reject(new Error('Speech synthesis error: ' + (e.error || 'unknown')));
+    window.speechSynthesis.speak(utter);
+  });
+}
+
+async function ttsSpeakHttp(text, url) {
+  // Piper expects JSON body {"text":"..."}; returns audio bytes
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text}),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      let detail = 'HTTP ' + res.status;
+      try { const err = await res.json(); if (err.error) detail = err.error; } catch(e) {}
+      throw new Error(detail);
+    }
+    const blob = await res.blob();
+    if (blob.size === 0) throw new Error('Empty audio response');
+    const blobUrl = URL.createObjectURL(blob);
+    const audio = new Audio(blobUrl);
+    currentAudio = audio;
+    await audio.play();
+    await new Promise(resolve => {
+      audio.onended = () => { URL.revokeObjectURL(blobUrl); currentAudio = null; resolve(); };
+      audio.onerror = () => { URL.revokeObjectURL(blobUrl); currentAudio = null; resolve(); };
+    });
+  } catch(e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error('TTS request timed out');
+    if (e.name === 'TypeError') throw new Error('Cannot reach TTS endpoint — check bridge server is running');
+    throw e;
+  }
+}
+
+if (window.speechSynthesis) { window.speechSynthesis.getVoices(); window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices(); }
 
 // ═══════════════════════════════════════════════
 // STATUS & PROTOCOLS
@@ -1514,19 +1561,42 @@ function updateStatus() {
 }
 function updateProtocols() {
   const sttAvail = !!(window.SpeechRecognition||window.webkitSpeechRecognition);
-  const ttsAvail = !!(window.speechSynthesis || cfg.ttsProvider === 'piper');
+  // TTS availability depends on provider:
+  //  - web-speech: needs window.speechSynthesis
+  //  - piper: needs bridge connected (server proxies /tts to Piper)
+  //  - custom: needs cfg.ttsEndpoint set
+  let ttsAvail = false;
+  let ttsStatus = 'N/A';
+  if (cfg.ttsProvider === 'web-speech') {
+    ttsAvail = !!window.speechSynthesis;
+    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'N/A';
+  } else if (cfg.ttsProvider === 'piper') {
+    ttsAvail = (bridgeMode !== 'none');
+    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'NO BRIDGE';
+  } else if (cfg.ttsProvider === 'custom') {
+    ttsAvail = !!cfg.ttsEndpoint;
+    ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'NO URL';
+  }
   document.getElementById('dot-stt').className = sttAvail?'dot green':'dot grey';
   document.getElementById('proto-stt').textContent = sttAvail?'READY':'N/A';
   document.getElementById('dot-llm').className = cfg.model?'dot green':'dot grey';
   document.getElementById('proto-llm').textContent = cfg.model?'READY':'CONFIGURE';
   document.getElementById('dot-tts').className = ttsAvail?'dot green':'dot grey';
-  document.getElementById('proto-tts').textContent = ttsAvail?(ttsEnabled?'ON':'OFF'):'N/A';
+  document.getElementById('proto-tts').textContent = ttsStatus;
   document.getElementById('dot-bridge').className = bridgeMode !== 'none' ? 'dot green' : 'dot grey';
   document.getElementById('proto-bridge').textContent = bridgeMode !== 'none' ? 'ONLINE ['+bridgeMode+']' : '--';
 
   const micBtn=document.getElementById('btn-mic'), ttsBtn=document.getElementById('btn-tts');
   if(!sttAvail){micBtn.disabled=true;micBtn.title='Speech recognition unavailable';}else{micBtn.disabled=false;micBtn.title='Voice input';}
-  if(!ttsAvail){ttsBtn.disabled=true;ttsBtn.title='Speech synthesis unavailable';}else{ttsBtn.disabled=false;ttsBtn.title=ttsEnabled?'Speech output: ON':'Speech output: OFF';}
+  if(!ttsAvail){
+    ttsBtn.disabled=true;
+    ttsBtn.title = cfg.ttsProvider === 'piper' ? 'Piper needs bridge connected' :
+                  cfg.ttsProvider === 'custom' ? 'Set TTS endpoint in CONFIG' :
+                  'Speech synthesis unavailable';
+  } else {
+    ttsBtn.disabled=false;
+    ttsBtn.title = ttsEnabled ? 'Speech output: ON ('+cfg.ttsProvider+')' : 'Speech output: OFF';
+  }
 }
 
 // ═══════════════════════════════════════════════

@@ -7,6 +7,7 @@ Usage:
     python3 bridge.py ~/.local/share/tomogichi-qt/
     python3 bridge.py ~/.local/share/tomogichi-qt/ --port 9191
     python3 bridge.py ~/.local/share/tomogichi-qt/ --token mysecret123
+    python3 bridge.py ~/.local/share/tomogichi-qt/ --tts-url http://localhost:5000
 
 Endpoints:
     GET  /ping              — health check
@@ -15,9 +16,14 @@ Endpoints:
     POST /append/<filename>  — append line to file (body = content)
     GET  /exists/<filename>  — check if file exists, returns {"exists":true/false}
     GET  /files              — list bridge files with sizes
+    POST /tts                — proxy TTS (body = {"text":"..."}), returns audio bytes
 
 Auth (optional):
     If --token is set, client must send "Authorization: Bearer <token>" header.
+
+TTS proxy (optional):
+    If --tts-url is set, POST /tts forwards the request to that URL's /synthesize
+    endpoint (Piper TTS compatible) and returns audio bytes. Default: disabled.
 """
 
 import http.server
@@ -32,6 +38,7 @@ from pathlib import Path
 class BridgeHandler(http.server.BaseHTTPRequestHandler):
     base_dir: Path = Path(".")
     auth_token: str = ""
+    tts_url: str = ""
 
     def log_message(self, fmt, *args):
         print(f"[bridge] {self.command} {self.path} -> {args[0]}", file=sys.stderr)
@@ -79,7 +86,9 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({
                 "status": "ok",
                 "dir": str(self.base_dir),
-                "files": self._list_files()
+                "files": self._list_files(),
+                "tts_proxy": bool(self.tts_url),
+                "tts_url": self.tts_url or None,
             }).encode())
             return
 
@@ -131,6 +140,41 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         path = parsed.path
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else ""
+
+        if path == "/tts":
+            # Proxy to Piper TTS server (or any compatible HTTP TTS endpoint)
+            if not self.tts_url:
+                self.send_cors(503, "application/json")
+                self.wfile.write(json.dumps({"error": "TTS proxy disabled (start bridge with --tts-url http://localhost:5000)"}).encode())
+                return
+            try:
+                target_url = self.tts_url.rstrip("/") + "/synthesize"
+                req = urllib.request.Request(
+                    target_url,
+                    data=body.encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    audio_data = resp.read()
+                    content_type = resp.headers.get("Content-Type", "audio/wav")
+                # Send response with explicit Content-Length (audio can be large)
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(audio_data)))
+                self.end_headers()
+                self.wfile.write(audio_data)
+                print(f"[bridge] TTS proxy: {len(audio_data)} bytes from {target_url}", file=sys.stderr)
+            except urllib.error.URLError as e:
+                self.send_cors(502, "application/json")
+                self.wfile.write(json.dumps({"error": f"TTS server unreachable: {e.reason}"}).encode())
+            except Exception as e:
+                self.send_cors(500, "application/json")
+                self.wfile.write(json.dumps({"error": f"TTS proxy failed: {e}"}).encode())
+            return
 
         if path.startswith("/write/"):
             filename = path[len("/write/"):]
@@ -217,6 +261,7 @@ def main():
 
     port = 9191
     token = ""
+    tts_url = ""
 
     i = 2
     while i < len(sys.argv):
@@ -227,11 +272,15 @@ def main():
         elif arg == "--token" and i + 1 < len(sys.argv):
             token = sys.argv[i + 1]
             i += 2
+        elif arg == "--tts-url" and i + 1 < len(sys.argv):
+            tts_url = sys.argv[i + 1]
+            i += 2
         else:
             i += 1
 
     BridgeHandler.base_dir = base_dir
     BridgeHandler.auth_token = token
+    BridgeHandler.tts_url = tts_url
 
     server = http.server.HTTPServer(("127.0.0.1", port), BridgeHandler)
     print(f"[bridge] serving {base_dir} on http://127.0.0.1:{port}", file=sys.stderr)
@@ -240,6 +289,10 @@ def main():
         print(f"[bridge] auth: enabled (Bearer token required)", file=sys.stderr)
     else:
         print(f"[bridge] auth: disabled (open access on localhost)", file=sys.stderr)
+    if tts_url:
+        print(f"[bridge] TTS proxy: {tts_url}/synthesize", file=sys.stderr)
+    else:
+        print(f"[bridge] TTS proxy: disabled (use --tts-url http://localhost:5000 to enable)", file=sys.stderr)
     print(f"[bridge] Ctrl+C to stop", file=sys.stderr)
     try:
         server.serve_forever()
