@@ -243,14 +243,11 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
     <div class="conv-list" id="conv-list"></div>
 
     <div class="sidebar-buttons">
-      <button class="btn-side" onclick="toggleFullscreen()" title="Toggle fullscreen (hides KDE panel)" id="btn-fs">⛶ FULLSCREEN</button>
-      <button class="btn-side" onclick="newConversation()" title="Start new conversation">NEW</button>
-      <button class="btn-side" onclick="runMorningBrief()" title="Generate morning brief">BRIEF</button>
-      <button class="btn-side" onclick="toggleMemoryPanel()" title="Browse AI memory files">🧠 MEMORY</button>
-      <button class="btn-side" onclick="togglePinnedDrawer()" title="Show pinned messages">★ PINNED</button>
-      <button class="btn-side" onclick="exportData()" title="Export conversations + memory">⬇ EXPORT</button>
-      <button class="btn-side danger" onclick="clearTerminal()">CLEAR</button>
-      <button class="btn-side" onclick="toggleConfig()">CONFIG</button>
+      <button class="btn-side" onclick="toggleFullscreen()" title="Toggle fullscreen (hides KDE panel)" id="btn-fs">⛶ FS</button>
+      <button class="btn-side" onclick="newConversation()" title="Start new conversation">+ NEW</button>
+      <button class="btn-side" onclick="runMorningBrief()" title="Generate morning brief (Ctrl+B)">BRIEF</button>
+      <button class="btn-side danger" onclick="clearTerminal()" title="Clear terminal (Ctrl+L)">CLEAR</button>
+      <button class="btn-side" onclick="toggleConfig()" title="Settings (Ctrl+,)">CONFIG</button>
     </div>
   </div>
   <div id="main">
@@ -336,6 +333,15 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
     <label>Latitude <input type="text" id="cfg-weather-lat" placeholder="52.52"></label>
     <label>Longitude <input type="text" id="cfg-weather-lon" placeholder="13.41"></label>
     <label>City name <input type="text" id="cfg-weather-city" placeholder="Berlin"></label>
+
+    <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+      <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:8px">DATA TOOLS</div>
+      <div class="config-buttons" style="margin-bottom:8px">
+        <button onclick="toggleMemoryPanel()" style="min-width:auto">🧠 MEMORY</button>
+        <button onclick="togglePinnedDrawer()" style="min-width:auto">★ PINNED</button>
+        <button onclick="exportData()" style="min-width:auto">⬇ EXPORT</button>
+      </div>
+    </div>
 
     <div class="config-buttons">
       <button onclick="applyConfig()">APPLY</button>
@@ -1968,6 +1974,7 @@ async function fetchWeather(lat, lon) {
 // ═══════════════════════════════════════════════
 function onSendClick() {
   if (isGenerating) {
+    // Stop generation
     if (currentAbortController) {
       try { currentAbortController.abort(); } catch(e) {}
       currentAbortController = null;
@@ -2017,12 +2024,13 @@ async function sendMessage() {
     }
     document.getElementById('status-text').textContent = 'ONLINE';
     document.getElementById('dot-status').className = 'dot green';
+  } finally {
+    // ALWAYS reset isGenerating, even if something unexpected throws
+    isGenerating = false;
+    btn.classList.remove('stopping');
+    btn.textContent = 'SEND';
+    input.focus();
   }
-
-  isGenerating = false;
-  btn.classList.remove('stopping');
-  btn.textContent = 'SEND';
-  input.focus();
 }
 
 // ═══════════════════════════════════════════════
@@ -2107,18 +2115,15 @@ function showTtsSetupHelp(reason) {
 }
 
 function toggleTTS() {
-  // If turning ON, check availability first — show setup help if unavailable
-  if (!ttsEnabled) {
-    const avail = checkTtsAvailable();
-    if (!avail.ok) {
-      showTtsSetupHelp(avail.reason);
-      return;  // Don't toggle on — user needs to fix setup first
-    }
-  }
   ttsEnabled = !ttsEnabled;
   const btn = document.getElementById('btn-tts');
   if (ttsEnabled) {
     btn.classList.add('tts-on'); btn.title='Speech output: ON ('+cfg.ttsProvider+')';
+    // Check availability — warn but DON'T block (user may fix setup after toggling)
+    const avail = checkTtsAvailable();
+    if (!avail.ok) {
+      showTtsSetupHelp(avail.reason);
+    }
   } else {
     btn.classList.remove('tts-on','tts-speaking');
     btn.title='Speech output: OFF';
@@ -2357,57 +2362,85 @@ function updateFsButton() {
   }
 }
 
+// ═══════════════════════════════════════════════
+// INIT — wrapped in try/catch to surface errors
+// ═══════════════════════════════════════════════
+
+// Global error handler — catches uncaught errors and shows them in terminal
+window.addEventListener('error', function(e) {
+  const msg = e.message + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : '');
+  try { addMessage('error', 'JS Error: ' + msg); } catch(e2) {
+    // If addMessage itself fails, show in document body
+    document.body.innerHTML += '<div style="color:red;font-family:monospace;padding:10px;">JS Error: ' + msg + '</div>';
+  }
+});
+
 function init() {
-  initCanvas();
-  populateConfigFields();
-  updateStatus();
-  updateProtocols();
+  try {
+    initCanvas();
+    populateConfigFields();
+    updateStatus();
+    updateProtocols();
 
-  // Initialize current conversation
-  if (conversations.length === 0) {
-    // No conversations exist — create a fresh one
-    newConversation();
-  } else if (!currentConvId || !conversations.find(c => c.id === currentConvId)) {
-    // Current ID invalid — switch to first
-    currentConvId = conversations[0].id;
-    localStorage.setItem('teletraan-current-conv', currentConvId);
-  }
-  const conv = getCurrentConversation();
-  conversationMessages = conv ? conv.messages.slice(-40) : [];
-
-  const browserMsg = hasFSA()
-    ? 'Browser: Chrome/Edge detected — bridge uses File System Access API.'
-    : 'Browser: Firefox detected — bridge requires local server. Use CONFIG → SELECT to set up.';
-  const bridgePath = localStorage.getItem('teletraan-bridge-path');
-  if (bridgePath) document.getElementById('cfg-bridge-dir').value = bridgePath;
-
-  addMessage('system','Teletraan-1 online. Agora bridge active.');
-  addMessage('system','Provider: '+(cfg.provider||'custom')+' | Model: '+(cfg.model||'not set'));
-  addMessage('system','Endpoint: '+cfg.endpoint+(cfg.thinkingEnabled?' [thinking:'+cfg.reasoningEffort+']':''));
-  addMessage('system',browserMsg);
-  addMessage('system','Tomogichi bridge: Use CONFIG → SELECT to connect.');
-  addMessage('system','Type a message to begin, Ctrl+B for morning brief.');
-
-  if (!cfg.apikey && cfg.endpoint.includes('deepseek.com')) addMessage('system','WARNING: No API key set. Get one at platform.deepseek.com/api_keys');
-  if (!cfg.model) addMessage('system','WARNING: No model configured. Set in CONFIG.');
-  if (!hasFSA()) addMessage('system','Firefox: run "python3 bridge.py ~/.local/share/tomogichi-qt/" in a terminal first.');
-
-  // If TTS is set to Piper but bridge isn't connected, show setup hint once on startup
-  const ttsAvail = checkTtsAvailable();
-  if (!ttsAvail.ok && cfg.ttsProvider === 'piper') {
-    setTimeout(() => showTtsSetupHelp(ttsAvail.reason), 1500);
-  }
-
-  // Render conversation list
-  renderConversationList();
-
-  // Restore current conversation messages (silent = no typewriter animation, no TTS)
-  if (conversationMessages.length > 0) {
-    addMessage('system','Restored '+conversationMessages.length+' messages from: '+(conv?.title||'conversation'));
-    for (const m of conversationMessages) {
-      if (m.role === 'user') addMessage('user', m.content, true);
-      else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
+    // Initialize current conversation
+    if (conversations.length === 0) {
+      const id = 'conv_' + Date.now();
+      conversations.push({id, title:'New conversation', messages:[], createdAt:Date.now(), updatedAt:Date.now(), pinnedMsgs:[]});
+      currentConvId = id;
+      localStorage.setItem('teletraan-current-conv', id);
+      conversationMessages = [];
+    } else {
+      if (!currentConvId || !conversations.find(c => c.id === currentConvId)) {
+        currentConvId = conversations[0].id;
+        localStorage.setItem('teletraan-current-conv', currentConvId);
+      }
+      const conv = getCurrentConversation();
+      conversationMessages = conv ? conv.messages.slice(-40) : [];
     }
+
+    const browserMsg = hasFSA()
+      ? 'Browser: Chrome/Edge detected — bridge uses File System Access API.'
+      : 'Browser: Firefox detected — bridge requires local server. Use CONFIG → SELECT to set up.';
+    const bridgePath = localStorage.getItem('teletraan-bridge-path');
+    if (bridgePath) document.getElementById('cfg-bridge-dir').value = bridgePath;
+
+    addMessage('system','Teletraan-1 online. Agora bridge active.');
+    addMessage('system','Provider: '+(cfg.provider||'custom')+' | Model: '+(cfg.model||'not set'));
+    addMessage('system','Endpoint: '+cfg.endpoint+(cfg.thinkingEnabled?' [thinking:'+cfg.reasoningEffort+']':''));
+    addMessage('system',browserMsg);
+    addMessage('system','Tomogichi bridge: Use CONFIG → SELECT to connect.');
+    addMessage('system','Type a message to begin, Ctrl+B for morning brief.');
+
+    if (!cfg.apikey && cfg.endpoint.includes('deepseek.com')) addMessage('system','WARNING: No API key set. Get one at platform.deepseek.com/api_keys');
+    if (!cfg.model) addMessage('system','WARNING: No model configured. Set in CONFIG.');
+    if (!hasFSA()) addMessage('system','Firefox: run "python3 bridge.py ~/.local/share/tomogichi-qt/" in a terminal first.');
+
+    // If TTS is set to Piper but bridge isn't connected, show setup hint once on startup
+    const ttsAvail = checkTtsAvailable();
+    if (!ttsAvail.ok && cfg.ttsProvider === 'piper') {
+      setTimeout(() => showTtsSetupHelp(ttsAvail.reason), 1500);
+    }
+
+    // Render conversation list
+    renderConversationList();
+
+    // Restore current conversation messages (silent = no typewriter animation, no TTS)
+    if (conversationMessages.length > 0) {
+      const conv = getCurrentConversation();
+      addMessage('system','Restored '+conversationMessages.length+' messages from: '+(conv?.title||'conversation'));
+      for (const m of conversationMessages) {
+        if (m.role === 'user') addMessage('user', m.content, true);
+        else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
+      }
+    }
+  } catch(e) {
+    // If init fails, show the error so we can debug
+    document.body.innerHTML = '<div style="color:#e23e57;font-family:monospace;padding:20px;font-size:14px;">' +
+      '<h2 style="color:#4dc9f6">TELETRAAN-1 INIT ERROR</h2>' +
+      '<pre style="white-space:pre-wrap;color:#e23e57">' + e.message + '\n\nStack:\n' + (e.stack||'') + '</pre>' +
+      '<p style="color:#95a5a6">Try: Clear localStorage (F12 → Storage → Clear), then reload.</p>' +
+      '</div>';
+    throw e;
   }
 }
 
