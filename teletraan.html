@@ -313,7 +313,7 @@ function addMessage(type, text) {
   if (type==='tool') prefix='[tool] ';
   if (type==='ai') {
     el.textContent = prefix; term.appendChild(el); scrollDown();
-    typeText(el, text, 0, () => { if (ttsEnabled) ttsSpeak(text); });
+    typeText(el, text, 0, () => { console.log('typeText done, ttsEnabled='+ttsEnabled+', provider='+cfg.ttsProvider); if (ttsEnabled) ttsSpeak(text); });
   } else {
     el.textContent = prefix + text; term.appendChild(el); scrollDown();
   }
@@ -1056,6 +1056,7 @@ function toggleTTS() {
   updateProtocols();
 }
 function ttsSpeak(text) {
+  console.log('ttsSpeak called, provider='+cfg.ttsProvider+', enabled='+ttsEnabled);
   if (!ttsEnabled) return;
   const btn=document.getElementById('btn-tts');
 
