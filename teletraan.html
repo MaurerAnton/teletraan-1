@@ -131,6 +131,77 @@ html,body{height:100%;width:100%;overflow:hidden;
   vertical-align:text-bottom;animation:blink 1s infinite}
 @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
 
+/* Conversation list */
+.conv-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;min-height:60px}
+.conv-list::-webkit-scrollbar{width:3px}
+.conv-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.conv-item{padding:6px 8px;border-radius:3px;cursor:pointer;transition:background .15s;border:1px solid transparent}
+.conv-item:hover{background:rgba(77,201,246,.06);border-color:var(--border)}
+.conv-item.active{background:rgba(77,201,246,.12);border-color:var(--blue)}
+.conv-item-title{font-size:.72em;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-item-title.editing{outline:1px solid var(--blue);background:var(--bg-dark)}
+.conv-item-time{font-size:.55em;color:var(--grey);margin-top:2px;opacity:.6}
+.conv-item-actions{display:flex;gap:4px;margin-top:3px}
+.conv-item-actions button{background:transparent;border:none;color:var(--grey);font-size:.55em;cursor:pointer;padding:1px 4px;border-radius:2px}
+.conv-item-actions button:hover{color:var(--red)}
+
+/* Per-message hover actions */
+.msg-actions{position:absolute;right:8px;top:2px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.msg:hover .msg-actions{opacity:1}
+.msg-actions button{background:transparent;border:1px solid var(--border);color:var(--grey);font-size:.7em;
+  padding:2px 5px;cursor:pointer;border-radius:2px;line-height:1}
+.msg-actions button:hover{border-color:var(--blue);color:var(--blue)}
+.msg-actions button.danger:hover{border-color:var(--red);color:var(--red)}
+.msg{position:relative}
+.msg-status{font-size:.6em;color:var(--grey);margin-left:6px;opacity:.6}
+.msg-timestamp{font-size:.55em;color:var(--grey);text-align:right;opacity:0;transition:opacity .15s;margin-top:2px}
+.msg.show-timestamp .msg-timestamp{opacity:.7}
+.msg.always-timestamp .msg-timestamp{opacity:.7}
+
+/* Pinned messages drawer */
+.pinned-drawer{position:fixed;top:0;right:0;width:280px;height:100%;background:var(--bg-mid);border-left:2px solid var(--border);
+  z-index:25;transform:translateX(100%);transition:transform .25s;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.pinned-drawer.open{transform:translateX(0)}
+.pinned-drawer h3{color:var(--blue);text-shadow:0 0 6px var(--blue);font-size:.8em;letter-spacing:2px;margin-bottom:8px}
+.pinned-item{padding:6px 8px;border:1px solid var(--border);border-radius:3px;cursor:pointer;font-size:.72em;color:var(--purple)}
+.pinned-item:hover{border-color:var(--purple)}
+
+/* Memory panel */
+.memory-panel{position:fixed;top:0;right:0;width:340px;height:100%;background:var(--bg-mid);border-left:2px solid var(--border);
+  z-index:25;transform:translateX(100%);transition:transform .25s;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.memory-panel.open{transform:translateX(0)}
+.memory-panel h3{color:var(--purple);text-shadow:0 0 6px var(--purple);font-size:.8em;letter-spacing:2px;margin-bottom:4px}
+.memory-active{border:1px solid var(--purple);border-radius:3px;padding:8px;font-size:.72em;color:var(--purple);background:rgba(155,89,182,.05);white-space:pre-wrap;max-height:200px;overflow-y:auto}
+.memory-file{border:1px solid var(--border);border-radius:3px;padding:8px;font-size:.72em}
+.memory-file-name{color:var(--blue);cursor:pointer}
+.memory-file-name:hover{text-shadow:0 0 4px var(--blue)}
+.memory-file-content{color:var(--grey);margin-top:6px;white-space:pre-wrap;max-height:150px;overflow-y:auto}
+.memory-file-content.collapsed{display:none}
+.memory-file-actions{display:flex;gap:6px;margin-top:6px}
+.memory-file-actions button{background:transparent;border:1px solid var(--border);color:var(--grey);font-size:.6em;padding:2px 6px;cursor:pointer;border-radius:2px}
+.memory-file-actions button:hover{border-color:var(--red);color:var(--red)}
+
+/* Search */
+.search-box{background:var(--bg-dark);border:1px solid var(--border);color:var(--blue);font-family:inherit;
+  font-size:.7em;padding:5px 8px;border-radius:3px;outline:none;width:100%}
+.search-box:focus{border-color:var(--blue)}
+.search-box::placeholder{color:var(--grey);opacity:.5}
+
+/* Markdown rendering */
+.md-code-block{background:var(--bg-dark);border:1px solid var(--border);border-radius:3px;padding:8px;margin:4px 0;
+  font-size:.85em;overflow-x:auto;white-space:pre;color:var(--green)}
+.md-inline-code{background:var(--bg-dark);border:1px solid var(--border);border-radius:2px;padding:1px 4px;font-size:.9em;color:var(--green)}
+.md-bold{color:var(--blue);font-weight:bold}
+.md-list-item{display:list-item;list-style:disc;margin-left:16px}
+.md-table{border-collapse:collapse;margin:4px 0;font-size:.9em}
+.md-table th,.md-table td{border:1px solid var(--border);padding:3px 6px}
+.md-table th{color:var(--blue)}
+
+/* Connection health */
+.conn-health{font-size:.55em;color:var(--grey);opacity:.6}
+.conn-health.ok{color:var(--green)}
+.conn-health.err{color:var(--red)}
+
 @media(max-width:1024px){.app{flex-direction:column}
   #sidebar{width:100%;min-width:0;flex-direction:row;flex-wrap:wrap;gap:8px;padding:8px 10px;border-right:none;border-bottom:2px solid var(--border);align-items:center;justify-content:space-between}
   .sidebar-header{border-bottom:none;padding-bottom:0}.sidebar-header h1{font-size:.85em;letter-spacing:2px}.sidebar-header .subtitle{display:none}
@@ -154,12 +225,21 @@ html,body{height:100%;width:100%;overflow:hidden;
     <div class="status-block">
       <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROTOCOLS</div>
       <div class="status-row"><span><span class="dot grey" id="dot-stt"></span>STT</span><span id="proto-stt">--</span></div>
-      <div class="status-row"><span><span class="dot green" id="dot-llm"></span>LLM</span><span id="proto-llm">READY</span></div>
+      <div class="status-row"><span><span class="dot green" id="dot-llm"></span>LLM</span><span id="proto-llm">READY <span class="conn-health" id="conn-health"></span></span></div>
       <div class="status-row"><span><span class="dot grey" id="dot-tts"></span>TTS</span><span id="proto-tts">--</span></div>
       <div class="status-row"><span><span class="dot grey" id="dot-bridge"></span>SYNC</span><span id="proto-bridge">--</span></div>
     </div>
+
+    <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-top:4px">CONVERSATIONS</div>
+    <input type="text" class="search-box" id="conv-search" placeholder="Search conversations..." oninput="filterConversations()">
+    <div class="conv-list" id="conv-list"></div>
+
     <div class="sidebar-buttons">
+      <button class="btn-side" onclick="newConversation()" title="Start new conversation">NEW</button>
       <button class="btn-side" onclick="runMorningBrief()" title="Generate morning brief">BRIEF</button>
+      <button class="btn-side" onclick="toggleMemoryPanel()" title="Browse AI memory files">🧠 MEMORY</button>
+      <button class="btn-side" onclick="togglePinnedDrawer()" title="Show pinned messages">★ PINNED</button>
+      <button class="btn-side" onclick="exportData()" title="Export conversations + memory">⬇ EXPORT</button>
       <button class="btn-side danger" onclick="clearTerminal()">CLEAR</button>
       <button class="btn-side" onclick="toggleConfig()">CONFIG</button>
     </div>
@@ -235,6 +315,8 @@ html,body{height:100%;width:100%;overflow:hidden;
     </label>
     <label>TTS Endpoint <input type="text" id="cfg-tts-endpoint"></label>
     <label>TTS Voice <input type="text" id="cfg-tts-voice" placeholder="default"></label>
+    <label>TTS Timeout (seconds) <input type="number" id="cfg-tts-timeout" min="10" max="300" value="60"></label>
+    <label class="row-chk"><span>Always show message timestamps</span><input type="checkbox" id="cfg-show-timestamps"></label>
 
     <label>System Prompt (use {'{'}tomogichi{'}'} for state, {'{'}emergency{'}'} for flag, {'{'}date{'}'}/{'{'}time{'}'} for now)
       <textarea id="cfg-system-prompt" rows="6"></textarea>
@@ -254,6 +336,21 @@ html,body{height:100%;width:100%;overflow:hidden;
   </div>
 </div>
 
+<div class="pinned-drawer" id="pinned-drawer">
+  <h3>★ PINNED MESSAGES</h3>
+  <div id="pinned-list"></div>
+  <button class="btn-side" onclick="togglePinnedDrawer()" style="margin-top:8px">CLOSE</button>
+</div>
+
+<div class="memory-panel" id="memory-panel">
+  <h3>🧠 MEMORY FILES</h3>
+  <div style="font-size:.65em;color:var(--grey);letter-spacing:1px;margin-bottom:4px">ACTIVE MEMORY</div>
+  <div class="memory-active" id="memory-active-view">(empty)</div>
+  <div style="font-size:.65em;color:var(--grey);letter-spacing:1px;margin-bottom:4px">SAVED FILES</div>
+  <div id="memory-files-list"></div>
+  <button class="btn-side" onclick="toggleMemoryPanel()" style="margin-top:8px">CLOSE</button>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════
 // TELETRAAN-1 — Agora Desktop Web Bridge
@@ -264,6 +361,7 @@ const DEFAULTS = {
   provider:'deepseek-flash',
   endpoint:'https://api.deepseek.com', model:'deepseek-v4-flash', apikey:'', bridgeServer:'http://localhost:9191',
   streamEnabled:true, thinkingEnabled:false, reasoningEffort:'high',
+  ttsTimeout:60, alwaysShowTimestamps:false,
   sttProvider:'web-speech', sttEndpoint:'',
   ttsProvider:'web-speech', ttsEndpoint:'', ttsVoice:'default',
   systemPrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
@@ -285,17 +383,179 @@ let bridgeHandle = null;
 let bridgeMode = 'none';
 let bridgePollInterval = null;
 let activeMemory = loadActiveMemory();
-let conversationMessages = loadConversation();
+let conversations = loadConversations();        // [{id, title, messages, createdAt, updatedAt, pinnedMsgs}]
+let currentConvId = localStorage.getItem('teletraan-current-conv') || null;
+let conversationMessages = [];                   // alias for current conversation's messages
 let memoryFiles = loadMemoryFiles();
 let currentAbortController = null;
 let isGenerating = false;
 let lastEmergencyHash = '';
 let sessionTokenCount = 0;
 let currentAudio = null;
+let lastResponseTime = 0;
 
-function loadConfig() {
-  try { const raw = localStorage.getItem('teletraan-config'); if (raw) return {...DEFAULTS,...JSON.parse(raw)}; } catch(e){}
-  return {...DEFAULTS};
+// ── Multi-conversation schema ──
+function loadConversations() {
+  // Try new schema first
+  try {
+    const raw = localStorage.getItem('teletraan-conversations');
+    if (raw) return JSON.parse(raw);
+  } catch(e){}
+  // Auto-migrate old single-conversation schema
+  try {
+    const old = localStorage.getItem('teletraan-conversation');
+    if (old) {
+      const msgs = JSON.parse(old);
+      if (msgs && msgs.length) {
+        const migrated = [{
+          id: 'conv_' + Date.now(),
+          title: 'Imported',
+          messages: msgs.slice(-40),
+          createdAt: msgs[0].timestamp || Date.now(),
+          updatedAt: Date.now(),
+          pinnedMsgs: []
+        }];
+        localStorage.setItem('teletraan-conversations', JSON.stringify(migrated));
+        return migrated;
+      }
+    }
+  } catch(e){}
+  return [];
+}
+function saveConversations() {
+  try { localStorage.setItem('teletraan-conversations', JSON.stringify(conversations)); } catch(e){}
+}
+function getCurrentConversation() {
+  return conversations.find(c => c.id === currentConvId) || conversations[0] || null;
+}
+function switchConversation(id) {
+  // Save current messages back to conversation
+  const cur = getCurrentConversation();
+  if (cur) { cur.messages = conversationMessages.slice(-40); cur.updatedAt = Date.now(); }
+  currentConvId = id;
+  localStorage.setItem('teletraan-current-conv', id);
+  const conv = conversations.find(c => c.id === id);
+  conversationMessages = conv ? conv.messages.slice(-40) : [];
+  renderConversationList();
+  // Reload terminal display
+  document.getElementById('terminal').innerHTML = '';
+  addMessage('system', 'Switched to: ' + (conv ? conv.title : 'new conversation'));
+  if (conversationMessages.length > 0) {
+    for (const m of conversationMessages) {
+      if (m.role === 'user') addMessage('user', m.content, true);
+      else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
+    }
+  }
+  saveConversations();
+}
+function newConversation() {
+  const id = 'conv_' + Date.now();
+  conversations.unshift({id, title:'New conversation', messages:[], createdAt:Date.now(), updatedAt:Date.now(), pinnedMsgs:[]});
+  currentConvId = id;
+  localStorage.setItem('teletraan-current-conv', id);
+  conversationMessages = [];
+  document.getElementById('terminal').innerHTML = '';
+  addMessage('system', 'New conversation started.');
+  renderConversationList();
+  saveConversations();
+  document.getElementById('msg-input').focus();
+}
+function deleteConversation(id) {
+  if (!confirm('Delete this conversation?')) return;
+  conversations = conversations.filter(c => c.id !== id);
+  if (currentConvId === id) {
+    currentConvId = conversations[0] ? conversations[0].id : null;
+    const conv = getCurrentConversation();
+    conversationMessages = conv ? conv.messages.slice(-40) : [];
+    document.getElementById('terminal').innerHTML = '';
+    if (conv) {
+      addMessage('system', 'Switched to: ' + conv.title);
+      for (const m of conv.messages) {
+        if (m.role === 'user') addMessage('user', m.content, true);
+        else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
+      }
+    }
+  }
+  renderConversationList();
+  saveConversations();
+}
+function renderConversationList() {
+  const list = document.getElementById('conv-list');
+  if (!list) return;
+  const search = (document.getElementById('conv-search')?.value || '').toLowerCase();
+  list.innerHTML = '';
+  const filtered = conversations.filter(c => {
+    if (!search) return true;
+    return (c.title || '').toLowerCase().includes(search) ||
+           c.messages.some(m => (m.content || '').toLowerCase().includes(search));
+  });
+  for (const c of filtered) {
+    const div = document.createElement('div');
+    div.className = 'conv-item' + (c.id === currentConvId ? ' active' : '');
+    div.onclick = () => switchConversation(c.id);
+    const titleSpan = document.createElement('div');
+    titleSpan.className = 'conv-item-title';
+    titleSpan.textContent = c.title || 'Untitled';
+    titleSpan.ondblclick = (e) => { e.stopPropagation(); editConversationTitle(c, titleSpan); };
+    const timeDiv = document.createElement('div');
+    timeDiv.className = 'conv-item-time';
+    timeDiv.textContent = formatRelativeTime(c.updatedAt || c.createdAt);
+    const actions = document.createElement('div');
+    actions.className = 'conv-item-actions';
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.onclick = (e) => { e.stopPropagation(); deleteConversation(c.id); };
+    actions.appendChild(delBtn);
+    div.appendChild(titleSpan);
+    div.appendChild(timeDiv);
+    div.appendChild(actions);
+    list.appendChild(div);
+  }
+}
+function editConversationTitle(conv, span) {
+  const oldTitle = conv.title;
+  span.contentEditable = true;
+  span.classList.add('editing');
+  span.focus();
+  document.execCommand('selectAll', false, null);
+  span.onblur = () => {
+    span.contentEditable = false;
+    span.classList.remove('editing');
+    const newTitle = span.textContent.trim();
+    if (newTitle && newTitle !== oldTitle) {
+      conv.title = newTitle;
+      saveConversations();
+    } else {
+      span.textContent = oldTitle;
+    }
+  };
+  span.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); span.blur(); }
+    if (e.key === 'Escape') { span.textContent = oldTitle; span.blur(); }
+  };
+}
+function formatRelativeTime(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - ts;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  const day = Math.floor(hr / 24);
+  return day + 'd ago';
+}
+function filterConversations() { renderConversationList(); }
+function autoGenerateTitle(conv) {
+  if (conv.title && conv.title !== 'New conversation' && conv.title !== 'Imported') return;
+  if (!conv.messages || conv.messages.length < 2) return;
+  // Use first user message as title (truncated) — avoids extra LLM call cost
+  const firstUser = conv.messages.find(m => m.role === 'user');
+  if (firstUser && firstUser.content) {
+    conv.title = firstUser.content.substring(0, 40).trim() + (firstUser.content.length > 40 ? '...' : '');
+    saveConversations();
+    renderConversationList();
+  }
 }
 function saveConfig() { localStorage.setItem('teletraan-config', JSON.stringify(cfg)); }
 
@@ -304,8 +564,11 @@ function loadConversation() {
   try { const raw = localStorage.getItem('teletraan-conversation'); if (raw) return JSON.parse(raw).slice(-40); } catch(e){}
   return [];
 }
+// Shim: save current conversationMessages back to the current conversation
 function saveConversation() {
-  try { localStorage.setItem('teletraan-conversation', JSON.stringify(conversationMessages.slice(-40))); } catch(e){}
+  const cur = getCurrentConversation();
+  if (cur) { cur.messages = conversationMessages.slice(-40); cur.updatedAt = Date.now(); }
+  saveConversations();
 }
 function loadMemoryFiles() {
   try { const raw = localStorage.getItem('teletraan-memory-files'); if (raw) return JSON.parse(raw); } catch(e){}
@@ -361,6 +624,8 @@ function applyConfig() {
   cfg.ttsProvider = document.getElementById('cfg-tts-provider').value;
   cfg.ttsEndpoint = document.getElementById('cfg-tts-endpoint').value.trim();
   cfg.ttsVoice = document.getElementById('cfg-tts-voice').value.trim() || 'default';
+  cfg.ttsTimeout = parseInt(document.getElementById('cfg-tts-timeout').value) || 60;
+  cfg.alwaysShowTimestamps = document.getElementById('cfg-show-timestamps').checked;
   cfg.systemPrompt = document.getElementById('cfg-system-prompt').value.trim() || DEFAULTS.systemPrompt;
   cfg.memTools = document.getElementById('cfg-mem-tools').checked;
   cfg.weatherEnabled = document.getElementById('cfg-weather-enabled').checked;
@@ -389,6 +654,8 @@ function populateConfigFields() {
   document.getElementById('cfg-tts-provider').value = cfg.ttsProvider;
   document.getElementById('cfg-tts-endpoint').value = cfg.ttsEndpoint;
   document.getElementById('cfg-tts-voice').value = cfg.ttsVoice;
+  document.getElementById('cfg-tts-timeout').value = cfg.ttsTimeout || 60;
+  document.getElementById('cfg-show-timestamps').checked = cfg.alwaysShowTimestamps || false;
   document.getElementById('cfg-system-prompt').value = cfg.systemPrompt;
   document.getElementById('cfg-mem-tools').checked = cfg.memTools;
   document.getElementById('cfg-weather-enabled').checked = cfg.weatherEnabled;
@@ -448,22 +715,334 @@ function addMessage(type, text, silent) {
   const term = document.getElementById('terminal');
   const el = document.createElement('div');
   el.className = 'msg msg-' + type;
+  if (cfg.alwaysShowTimestamps) el.classList.add('always-timestamp');
+  el.onclick = () => el.classList.toggle('show-timestamp');
+  el.dataset.timestamp = new Date().toISOString();
+
   let prefix = '';
   if (type==='user') prefix='> ';
   if (type==='ai') prefix='TELETRAAN-1: ';
   if (type==='error') prefix='ERROR: ';
   if (type==='incoming') prefix='INCOMING: ';
   if (type==='tool') prefix='[tool] ';
+
+  // Timestamp element (hidden by default, shown on click or if always-show enabled)
+  const tsEl = document.createElement('div');
+  tsEl.className = 'msg-timestamp';
+  const d = new Date();
+  tsEl.textContent = d.toLocaleTimeString('en-US',{hour12:false}) + ' | ' + d.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit'});
+
+  // Hover actions for AI and user messages
+  if ((type === 'ai' || type === 'user') && !silent) {
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    if (type === 'ai') {
+      const regen = document.createElement('button');
+      regen.textContent = '↻'; regen.title = 'Regenerate';
+      regen.onclick = (e) => { e.stopPropagation(); regenerateLast(); };
+      actions.appendChild(regen);
+      const copy = document.createElement('button');
+      copy.textContent = '📋'; copy.title = 'Copy';
+      copy.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(text); };
+      actions.appendChild(copy);
+    }
+    if (type === 'user') {
+      const edit = document.createElement('button');
+      edit.textContent = '✎'; edit.title = 'Edit & resend';
+      edit.onclick = (e) => { e.stopPropagation(); editLastUserMessage(text); };
+      actions.appendChild(edit);
+    }
+    const pin = document.createElement('button');
+    pin.textContent = '☆'; pin.title = 'Pin message';
+    pin.onclick = (e) => { e.stopPropagation(); pinMessage(text, type, pin); };
+    actions.appendChild(pin);
+    el.appendChild(actions);
+  }
+
   if (type==='ai' && !silent) {
-    el.textContent = prefix; term.appendChild(el); scrollDown();
-    typeText(el, text, 0, () => { if (ttsEnabled) ttsSpeak(text); });
+    const contentEl = document.createElement('div');
+    contentEl.style.marginTop = '4px';
+    contentEl.textContent = prefix;
+    el.appendChild(contentEl);
+    term.appendChild(el);
+    term.appendChild(tsEl);
+    scrollDown();
+    typeTextMarkdown(contentEl, prefix, text, 0, () => { if (ttsEnabled) ttsSpeak(text); });
+  } else if (type === 'ai') {
+    // Silent AI message (restored from history) — render markdown instantly
+    const contentEl = document.createElement('div');
+    contentEl.style.marginTop = '4px';
+    contentEl.innerHTML = prefix + renderMarkdown(text);
+    el.appendChild(contentEl);
+    term.appendChild(el);
+    term.appendChild(tsEl);
+    scrollDown();
   } else {
-    el.textContent = prefix + text; term.appendChild(el); scrollDown();
+    const contentEl = document.createElement('div');
+    contentEl.textContent = prefix + text;
+    el.appendChild(contentEl);
+    term.appendChild(el);
+    term.appendChild(tsEl);
+    scrollDown();
   }
 }
-function typeText(el, text, idx, cb) {
-  if (idx < text.length) { el.textContent += text.charAt(idx); scrollDown(); setTimeout(()=>typeText(el,text,idx+1,cb), 20+Math.random()*20); }
-  else if (cb) cb();
+
+// Type text char-by-char, then render markdown when complete
+function typeTextMarkdown(el, prefix, text, idx, cb) {
+  if (idx < text.length) {
+    el.textContent = prefix + text.substring(0, idx+1);
+    scrollDown();
+    setTimeout(()=>typeTextMarkdown(el, prefix, text, idx+1, cb), 20+Math.random()*20);
+  } else {
+    // Streaming complete — render markdown
+    el.innerHTML = prefix + renderMarkdown(text);
+    scrollDown();
+    if (cb) cb();
+  }
+}
+
+// Minimal markdown renderer (HTML-escaped for safety)
+function renderMarkdown(text) {
+  // Escape HTML first to prevent XSS
+  let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Code blocks: ```lang\ncode```
+  s = s.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
+    return '<div class="md-code-block">' + code.replace(/^\n/, '') + '</div>';
+  });
+  // Inline code: `code`
+  s = s.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+  // Bold: **text**
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<span class="md-bold">$1</span>');
+  // Lists: - item or * item (line start)
+  s = s.replace(/^[\-\*]\s+(.+)$/gm, '<div class="md-list-item">$1</div>');
+  // Tables (simple: |a|b| header |---| row |c|d|)
+  if (s.includes('|---|')) {
+    const lines = s.split('\n');
+    let inTable = false, tableHtml = '', result = [];
+    for (const line of lines) {
+      if (line.includes('|---|')) { inTable = true; tableHtml = '<table class="md-table">'; continue; }
+      if (inTable && line.includes('|')) {
+        const cells = line.split('|').filter(c => c.trim());
+        const tag = tableHtml.includes('<tr>') ? 'td' : 'th';
+        tableHtml += '<tr>' + cells.map(c => '<'+tag+'>' + c.trim() + '</'+tag+'>').join('') + '</tr>';
+        if (tag === 'th') tableHtml = tableHtml.replace(/<th>/g, '<th>').replace(/<\/th>/g, '</th>');
+      } else if (inTable) {
+        tableHtml += '</table>';
+        result.push(tableHtml);
+        tableHtml = '';
+        inTable = false;
+        result.push(line);
+      } else {
+        result.push(line);
+      }
+    }
+    if (tableHtml) { tableHtml += '</table>'; result.push(tableHtml); }
+    s = result.join('\n');
+  }
+  return s;
+}
+
+function regenerateLast() {
+  // Find last user message, drop everything after last AI, re-send
+  let lastUserIdx = -1;
+  for (let i = conversationMessages.length - 1; i >= 0; i--) {
+    if (conversationMessages[i].role === 'user') { lastUserIdx = i; break; }
+  }
+  if (lastUserIdx < 0) { addMessage('error', 'No user message to regenerate from.'); return; }
+  const userText = conversationMessages[lastUserIdx].content;
+  // Drop everything from lastUserIdx onward
+  conversationMessages = conversationMessages.slice(0, lastUserIdx);
+  saveConversation();
+  // Clear terminal and re-render
+  document.getElementById('terminal').innerHTML = '';
+  for (const m of conversationMessages) {
+    if (m.role === 'user') addMessage('user', m.content, true);
+    else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
+  }
+  addMessage('user', userText);
+  conversationMessages.push({role:'user', content: userText});
+  saveConversation();
+  sendMessageInternal(userText);
+}
+
+function editLastUserMessage(originalText) {
+  const input = document.getElementById('msg-input');
+  input.value = originalText;
+  input.focus();
+  // Drop the last user message + any AI response after it
+  let lastUserIdx = -1;
+  for (let i = conversationMessages.length - 1; i >= 0; i--) {
+    if (conversationMessages[i].role === 'user') { lastUserIdx = i; break; }
+  }
+  if (lastUserIdx >= 0) {
+    conversationMessages = conversationMessages.slice(0, lastUserIdx);
+    saveConversation();
+    document.getElementById('terminal').innerHTML = '';
+    for (const m of conversationMessages) {
+      if (m.role === 'user') addMessage('user', m.content, true);
+      else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
+    }
+  }
+}
+
+function pinMessage(text, type, btn) {
+  const conv = getCurrentConversation();
+  if (!conv) return;
+  if (!conv.pinnedMsgs) conv.pinnedMsgs = [];
+  const idx = conv.pinnedMsgs.findIndex(p => p.text === text);
+  if (idx >= 0) {
+    conv.pinnedMsgs.splice(idx, 1);
+    btn.textContent = '☆';
+  } else {
+    conv.pinnedMsgs.push({text, type, timestamp: Date.now()});
+    btn.textContent = '★';
+  }
+  saveConversations();
+  renderPinnedList();
+}
+
+function renderPinnedList() {
+  const list = document.getElementById('pinned-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const conv = getCurrentConversation();
+  if (!conv || !conv.pinnedMsgs || conv.pinnedMsgs.length === 0) {
+    list.innerHTML = '<div style="color:var(--grey);font-size:.7em">No pinned messages</div>';
+    return;
+  }
+  for (const p of conv.pinnedMsgs) {
+    const div = document.createElement('div');
+    div.className = 'pinned-item';
+    div.textContent = (p.type === 'user' ? '> ' : 'AI: ') + p.text.substring(0, 80) + (p.text.length > 80 ? '...' : '');
+    list.appendChild(div);
+  }
+}
+
+function togglePinnedDrawer() {
+  const drawer = document.getElementById('pinned-drawer');
+  renderPinnedList();
+  drawer.classList.toggle('open');
+}
+
+function toggleMemoryPanel() {
+  const panel = document.getElementById('memory-panel');
+  renderMemoryPanel();
+  panel.classList.toggle('open');
+}
+
+function renderMemoryPanel() {
+  const active = document.getElementById('memory-active-view');
+  if (active) active.textContent = activeMemory || '(empty — run morning brief with Ctrl+B or BRIEF button)';
+  const list = document.getElementById('memory-files-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const keys = Object.keys(memoryFiles);
+  if (keys.length === 0) {
+    list.innerHTML = '<div style="color:var(--grey);font-size:.7em">No saved memory files</div>';
+    return;
+  }
+  for (const k of keys) {
+    const div = document.createElement('div');
+    div.className = 'memory-file';
+    const name = document.createElement('div');
+    name.className = 'memory-file-name';
+    name.textContent = k + ' (' + memoryFiles[k].length + ' bytes)';
+    const content = document.createElement('div');
+    content.className = 'memory-file-content collapsed';
+    content.textContent = memoryFiles[k];
+    name.onclick = () => content.classList.toggle('collapsed');
+    const actions = document.createElement('div');
+    actions.className = 'memory-file-actions';
+    const del = document.createElement('button');
+    del.textContent = 'DELETE';
+    del.onclick = () => { delete memoryFiles[k]; saveMemoryFiles(); renderMemoryPanel(); };
+    actions.appendChild(del);
+    div.appendChild(name);
+    div.appendChild(content);
+    div.appendChild(actions);
+    list.appendChild(div);
+  }
+}
+
+function exportData() {
+  const data = {
+    version: 1,
+    app: 'teletraan-1',
+    exportedAt: new Date().toISOString(),
+    conversations: conversations,
+    memoryFiles: memoryFiles,
+    activeMemory: activeMemory,
+    config: {...cfg, apikey: undefined}  // strip API key
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'teletraan-export-' + new Date().toISOString().substring(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  addMessage('system', 'Exported ' + conversations.length + ' conversations + ' + Object.keys(memoryFiles).length + ' memory files (API key excluded).');
+}
+
+async function importData(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (data.conversations) {
+      // Merge: add imported conversations (skip duplicates by ID)
+      const existingIds = new Set(conversations.map(c => c.id));
+      for (const c of data.conversations) {
+        if (!existingIds.has(c.id)) conversations.push(c);
+      }
+    }
+    if (data.memoryFiles) {
+      for (const k in data.memoryFiles) {
+        if (!(k in memoryFiles)) memoryFiles[k] = data.memoryFiles[k];
+      }
+      saveMemoryFiles();
+    }
+    if (data.activeMemory) { activeMemory = data.activeMemory; saveActiveMemory(); }
+    saveConversations();
+    renderConversationList();
+    addMessage('system', 'Imported ' + (data.conversations?.length || 0) + ' conversations.');
+  } catch(e) {
+    addMessage('error', 'Import failed: ' + e.message);
+  }
+}
+
+// Internal send (used by regenerate) — doesn't read from input field
+async function sendMessageInternal(text) {
+  isGenerating = true;
+  const btn = document.getElementById('btn-send');
+  btn.classList.add('stopping');
+  btn.textContent = 'STOP';
+  document.getElementById('status-text').textContent = 'PROCESSING...';
+  document.getElementById('dot-status').className = 'dot red';
+  try {
+    const t0 = Date.now();
+    await sendToLLM(text, false);
+    lastResponseTime = ((Date.now() - t0) / 1000).toFixed(1);
+    updateConnHealth();
+    document.getElementById('status-text').textContent = 'ONLINE';
+    document.getElementById('dot-status').className = 'dot green';
+  } catch(err) {
+    if (err.name === 'AbortError') addMessage('system', '(aborted)');
+    else addMessage('error', err.message);
+    document.getElementById('status-text').textContent = 'ONLINE';
+    document.getElementById('dot-status').className = 'dot green';
+  }
+  isGenerating = false;
+  btn.classList.remove('stopping');
+  btn.textContent = 'SEND';
+}
+
+function updateConnHealth() {
+  const el = document.getElementById('conn-health');
+  if (!el) return;
+  if (lastResponseTime) {
+    el.textContent = '~' + lastResponseTime + 's';
+    el.className = 'conn-health ok';
+  }
 }
 function scrollDown() { const t=document.getElementById('terminal'); requestAnimationFrame(()=>{t.scrollTop=t.scrollHeight;}); }
 function clearTerminal() {
@@ -1108,7 +1687,7 @@ async function sendToLLM(userMessage, isEmergency) {
       conversationMessages.push({role:'tool', tool_call_id: tc.id, content: result});
     }
 
-    saveConversation();
+    saveConversation() // DEPRECATED - replace with saveConversations();
     return await continueWithToolResults(isEmergency, 1);
   }
 
@@ -1117,7 +1696,7 @@ async function sendToLLM(userMessage, isEmergency) {
   if (!content.trim()) throw new Error('No response. Retry.');
   conversationMessages.push({role:'assistant', content: content});
   if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
-  saveConversation();
+  saveConversation() // DEPRECATED - replace with saveConversations();
 
   if (ttsEnabled) ttsSpeak(content);
   return content;
@@ -1127,7 +1706,7 @@ async function continueWithToolResults(isEmergency, depth) {
   depth = depth || 1;
   if (depth >= 5) {
     conversationMessages.push({role:'assistant', content:'(Too many tool call rounds. Stopping.)'});
-    saveConversation();
+    saveConversation() // DEPRECATED - replace with saveConversations();
     return 'Multiple tool iterations complete. Ask the user for further direction.';
   }
 
@@ -1167,7 +1746,7 @@ async function continueWithToolResults(isEmergency, depth) {
       updateToolCard(fn.name, result);
       conversationMessages.push({role:'tool', tool_call_id: tc.id, content: result});
     }
-    saveConversation();
+    saveConversation() // DEPRECATED - replace with saveConversations();
     return await continueWithToolResults(isEmergency, depth + 1);
   }
 
@@ -1175,7 +1754,7 @@ async function continueWithToolResults(isEmergency, depth) {
   if (!content.trim()) throw new Error('No response. Retry.');
   conversationMessages.push({role:'assistant', content: content});
   if (conversationMessages.length > 60) conversationMessages = conversationMessages.slice(-40);
-  saveConversation();
+  saveConversation() // DEPRECATED - replace with saveConversations();
 
   if (ttsEnabled) ttsSpeak(content);
   return content;
@@ -1412,7 +1991,13 @@ async function sendMessage() {
 
   // AI response is rendered inside sendToLLM via createStreamingMessage() — no addMessage('ai') here.
   try {
+    const t0 = Date.now();
     await sendToLLM(text, false);
+    lastResponseTime = ((Date.now() - t0) / 1000).toFixed(1);
+    updateConnHealth();
+    // Auto-generate title after first exchange
+    const conv = getCurrentConversation();
+    if (conv) autoGenerateTitle(conv);
     document.getElementById('status-text').textContent = 'ONLINE';
     document.getElementById('dot-status').className = 'dot green';
   } catch(err) {
@@ -1584,7 +2169,8 @@ function ttsSpeakWebSpeech(text) {
 async function ttsSpeakHttp(text, url) {
   // Piper expects JSON body {"text":"..."}; returns audio bytes
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeoutSec = cfg.ttsTimeout || 60;
+  const timeout = setTimeout(() => controller.abort(), timeoutSec * 1000);
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -1714,6 +2300,18 @@ function init() {
   updateStatus();
   updateProtocols();
 
+  // Initialize current conversation
+  if (conversations.length === 0) {
+    // No conversations exist — create a fresh one
+    newConversation();
+  } else if (!currentConvId || !conversations.find(c => c.id === currentConvId)) {
+    // Current ID invalid — switch to first
+    currentConvId = conversations[0].id;
+    localStorage.setItem('teletraan-current-conv', currentConvId);
+  }
+  const conv = getCurrentConversation();
+  conversationMessages = conv ? conv.messages.slice(-40) : [];
+
   const browserMsg = hasFSA()
     ? 'Browser: Chrome/Edge detected — bridge uses File System Access API.'
     : 'Browser: Firefox detected — bridge requires local server. Use CONFIG → SELECT to set up.';
@@ -1737,9 +2335,12 @@ function init() {
     setTimeout(() => showTtsSetupHelp(ttsAvail.reason), 1500);
   }
 
-  // Restore previous conversation (silent = no typewriter animation, no TTS) — v4-pro fix
+  // Render conversation list
+  renderConversationList();
+
+  // Restore current conversation messages (silent = no typewriter animation, no TTS)
   if (conversationMessages.length > 0) {
-    addMessage('system','Restored '+conversationMessages.length+' messages from previous session.');
+    addMessage('system','Restored '+conversationMessages.length+' messages from: '+(conv?.title||'conversation'));
     for (const m of conversationMessages) {
       if (m.role === 'user') addMessage('user', m.content, true);
       else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
