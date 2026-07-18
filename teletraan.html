@@ -501,32 +501,43 @@ async function selectBridgeDirFSA() {
 
 // --- Mode 2: Local bridge server (Firefox/LibreWolf/IceCat) ---
 async function selectBridgeDirServer() {
-  const path = prompt(
-    'Firefox does not support direct filesystem access.\n\n' +
-    'Step 1: Run the bridge server:\n' +
-    '  python3 bridge.py /path/to/tomogichi-qt/\n\n' +
-    'Step 2: Enter the directory path below (same as in Step 1):\n\n' +
-    'Directory path:',
-    localStorage.getItem('teletraan-bridge-path') || ''
-  );
-  if (!path || !path.trim()) return;
-
-  localStorage.setItem('teletraan-bridge-path', path.trim());
-  document.getElementById('cfg-bridge-dir').value = path.trim();
-
-  // Test connection to bridge server
+  // Auto-connect: fetch /ping from bridge, which returns the directory + file list.
+  // No need for the user to type the path — bridge.py already knows it.
   const serverUrl = cfg.bridgeServer || 'http://localhost:9191';
+
+  addMessage('system','Connecting to bridge at ' + serverUrl + '...');
+
   try {
     const res = await fetch(serverUrl + '/ping');
     if (!res.ok) throw new Error('Server responded with ' + res.status);
+    const data = await res.json();
+
+    // Extract directory from /ping response (e.g. "/home/alarm/.local/share/tomogichi-qt")
+    const dirName = data.dir || serverUrl;
+    const shortName = dirName.split('/').filter(Boolean).pop() || dirName;  // "tomogichi-qt"
+
     bridgeMode = 'server';
-    onBridgeConnected(path.trim());
-    addMessage('system','Bridge mode: local server (' + serverUrl + ')');
+    onBridgeConnected(shortName);
+    document.getElementById('cfg-bridge-dir').value = dirName;  // full path in config field
+    localStorage.setItem('teletraan-bridge-path', dirName);
+
+    const fileCount = (data.files && data.files.length) || 0;
+    addMessage('system','Bridge connected: ' + dirName);
+    addMessage('system','Bridge serves ' + fileCount + ' files' + (data.tts_proxy ? ' + TTS proxy active' : ' (no TTS proxy)'));
+
     startBridgePolling();
   } catch(e) {
-    addMessage('error','Cannot reach bridge server at ' + serverUrl + '. Run: python3 bridge.py ' + path.trim());
-    addMessage('system','Example: python3 bridge.py ~/.local/share/tomogichi-qt/');
-    document.getElementById('bridge-status-msg').textContent = 'BRIDGE SERVER NOT REACHABLE — run python3 bridge.py';
+    // Bridge not reachable — show setup instructions with copy-paste command
+    addMessage('error','Cannot reach bridge server at ' + serverUrl);
+    addMessage('incoming',
+      '═══════════ BRIDGE SETUP ═══════════\n' +
+      'bridge.py is not running. Open a terminal and run:\n\n' +
+      '  cd ~/teletraan-1\n' +
+      '  python3 bridge.py ~/.local/share/tomogichi-qt/ --tts-url http://localhost:5000\n\n' +
+      'Then click CONFIG → SELECT again.\n' +
+      '═══════════════════════════════════'
+    );
+    document.getElementById('bridge-status-msg').textContent = 'BRIDGE NOT RUNNING — see terminal for setup command';
     document.getElementById('bridge-status-msg').className = 'bridge-status inactive';
   }
 }
@@ -1483,10 +1494,10 @@ function showTtsSetupHelp(reason) {
       '  ~/piper-venv/bin/python3 -m piper.http_server -m en_US-lessac-medium',
       '',
       'Step 2 — Start bridge.py with TTS proxy (in a new terminal):',
+      '  cd ~/teletraan-1',
       '  python3 bridge.py ~/.local/share/tomogichi-qt/ --tts-url http://localhost:5000',
-      '  (run from the directory containing bridge.py, or use the full path)',
       '',
-      'Step 3 — In this app: click CONFIG → SELECT → enter the path → bridge connects',
+      'Step 3 — In this app: click CONFIG → SELECT (bridge auto-connects, no path needed)',
       '',
       'Step 4 — Click 🔊 again to enable TTS',
       '',
