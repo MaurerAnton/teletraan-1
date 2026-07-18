@@ -160,14 +160,25 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                     headers={"Content-Type": "application/json"},
                     method="POST",
                 )
-                with urllib.request.urlopen(req, timeout=30) as resp:
+                with urllib.request.urlopen(req, timeout=60) as resp:
                     audio_data = resp.read()
                     content_type = resp.headers.get("Content-Type", "audio/wav")
-                    # Don't forward error responses as audio — return JSON error instead
-                    if content_type.startswith("application/json") or content_type.startswith("text/"):
+                    # Check if response is actually audio by looking at magic bytes:
+                    # WAV files start with "RIFF"...."WAVE"
+                    # This is more reliable than Content-Type (Piper may send odd headers)
+                    is_audio = (
+                        len(audio_data) >= 12 and
+                        audio_data[0:4] == b'RIFF' and
+                        audio_data[8:12] == b'WAVE'
+                    )
+                    if not is_audio:
+                        # Not WAV audio — likely an error response from Piper
                         self.send_cors(502, "application/json")
-                        self.wfile.write(json.dumps({"error": "Piper returned non-audio: " + audio_data.decode("utf-8", errors="replace")[:200]}).encode())
+                        err_text = audio_data.decode("utf-8", errors="replace")[:300]
+                        self.wfile.write(json.dumps({"error": "Piper returned non-audio (Content-Type: " + content_type + "): " + err_text}).encode())
                         return
+                    # It's valid WAV audio — override content_type to be sure
+                    content_type = "audio/wav"
                 # Send response with explicit Content-Length (audio can be large)
                 self.send_response(200)
                 self.send_header("Access-Control-Allow-Origin", "*")

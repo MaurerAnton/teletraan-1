@@ -2184,16 +2184,41 @@ async function ttsSpeak(text) {
 function ttsSpeakWebSpeech(text) {
   return new Promise((resolve, reject) => {
     if (!window.speechSynthesis) return reject(new Error('Speech synthesis not available in this browser'));
-    const utter = new SpeechSynthesisUtterance(text);
+    var utter;
+    try {
+      utter = new SpeechSynthesisUtterance(text);
+    } catch(e) {
+      return reject(new Error('Speech synthesis unavailable — install speech-dispatcher: sudo apt install speech-dispatcher espeak-ng'));
+    }
     utter.rate = 0.95; utter.pitch = 1; utter.volume = 1;
-    const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => v.name.includes(cfg.ttsVoice))
-      || voices.find(v => v.lang === 'en-US' && v.name.includes('Male'))
-      || voices.find(v => v.lang.startsWith('en'));
+    var voices = [];
+    try { voices = window.speechSynthesis.getVoices() || []; } catch(e) {}
+    var preferred = voices.find(function(v) { return v.name.indexOf(cfg.ttsVoice) >= 0; })
+      || voices.find(function(v) { return v.lang === 'en-US' && v.name.indexOf('Male') >= 0; })
+      || voices.find(function(v) { return v.lang && v.lang.indexOf('en') === 0; });
     if (preferred) utter.voice = preferred;
-    utter.onend = resolve;
-    utter.onerror = (e) => reject(new Error('Speech synthesis error: ' + (e.error || 'unknown')));
-    window.speechSynthesis.speak(utter);
+    var resolved = false;
+    utter.onend = function() { if (!resolved) { resolved = true; resolve(); } };
+    utter.onerror = function(e) {
+      if (resolved) return;
+      resolved = true;
+      var msg = e.error || 'unknown';
+      // Linux: "not-allowed" or "synthesis-failed" usually means speech-dispatcher is missing
+      if (msg === 'not-allowed' || msg === 'synthesis-failed' || msg === 'audio-busy') {
+        reject(new Error('Web Speech failed (error: ' + msg + '). On Linux, install: sudo apt install speech-dispatcher espeak-ng. Or switch to Piper TTS in CONFIG.'));
+      } else {
+        reject(new Error('Speech synthesis error: ' + msg));
+      }
+    };
+    // Timeout: if speech doesn't start in 5s, it's probably broken
+    setTimeout(function() {
+      if (!resolved) { resolved = true; reject(new Error('Web Speech timed out — speech-dispatcher may be missing. Install: sudo apt install speech-dispatcher espeak-ng. Or use Piper TTS.')); }
+    }, 5000);
+    try {
+      window.speechSynthesis.speak(utter);
+    } catch(e) {
+      if (!resolved) { resolved = true; reject(new Error('Speech synthesis failed to start: ' + e.message + '. Install: sudo apt install speech-dispatcher espeak-ng')); }
+    }
   });
 }
 
