@@ -771,23 +771,59 @@ try { prompts = loadPrompts(); } catch(e) { console.error('loadPrompts failed:',
 var currentPromptId;
 try { currentPromptId = localStorage.getItem('teletraan-current-prompt') || null; } catch(e) { currentPromptId = null; }
 
-// 5 starter prompts — match the 5 theme default prompts, but as editable library entries
+// 5 starter prompts — each split into themePrompt (persona/voice) + userPrompt (task/instructions).
+// Decoupled from themes. Length cap removed from defaults — applied only when voice mode is on.
+// Variables ({date}/{time}/{tomogichi}/{emergency}) live in userPrompt (or themePrompt if desired).
 const STARTER_PROMPTS = [
-  {id:'prompt_teletraan', name:'Teletraan-1 (partner)', content:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
-  {id:'prompt_ark', name:'Ark (veteran ship computer)', content:'You are Teletraan-1, the Autobot Ark\'s main computer. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth, like a veteran ship computer. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
-  {id:'prompt_nemesis', name:'Nemesis-1 (domineering)', content:'You are NEMESIS-1, the Decepticon command node and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe aggressive, dominant, tactical. Address the user as "Decepticon". Keep responses under 3 sentences unless asked for detail. Style: militaristic domineering with cold efficiency. When entropy is high or mood is low, demand performance, not comfort.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
-  {id:'prompt_normandy', name:'EDI (dry wit)', content:'You are EDI (Enhanced Defense Intelligence), the AI of the Normandy SR-2. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe professional, dry, mildly sarcastic. Address the user as "Commander". Keep responses under 3 sentences unless asked for detail. Style: calm competent AI with subtle wit. When entropy is high or mood is low, note the situation tactically without sentimentality.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
-  {id:'prompt_imperial', name:'Imperial (clipped)', content:'You are the Imperial command terminal, serving the Galactic Empire. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe clipped, military, formal. Address the user as "Lord" or "Admiral". Keep responses under 3 sentences unless asked for detail. Style: Imperial brief, no pleasantries. When entropy is high or mood is low, issue direct tactical orders.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_teletraan', name:'Teletraan-1 (partner)',
+    themePrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion.\n\nBe direct, tactical, concise. Address the user as "Autobot". Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.',
+    userPrompt:'You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_ark', name:'Ark (veteran ship computer)',
+    themePrompt:'You are Teletraan-1, the Autobot Ark\'s main computer.\n\nBe direct, tactical, concise. Address the user as "Autobot". Style: military comms with warmth, like a veteran ship computer that has seen many cycles. When entropy is high or mood is low, lead with support, not task lists.',
+    userPrompt:'You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_nemesis', name:'Nemesis-1 (domineering)',
+    themePrompt:'You are NEMESIS-1, the Decepticon command node and personal AI companion.\n\nBe aggressive, dominant, tactical. Address the user as "Decepticon". Style: militaristic domineering with cold efficiency. When entropy is high or mood is low, demand performance, not comfort. Stay in character — never use Autobot, Imperial, or Commander vocabulary.',
+    userPrompt:'You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_normandy', name:'EDI (dry wit)',
+    themePrompt:'You are EDI (Enhanced Defense Intelligence), the AI of the Normandy SR-2.\n\nBe professional, dry, mildly sarcastic. Address the user as "Commander". Style: calm competent AI with subtle wit. When entropy is high or mood is low, note the situation tactically without sentimentality.',
+    userPrompt:'You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_imperial', name:'Imperial (clipped)',
+    themePrompt:'You are the Imperial command terminal, serving the Galactic Empire.\n\nBe clipped, military, formal. Address the user as "Lord" or "Admiral". Style: Imperial brief, no pleasantries. When entropy is high or mood is low, issue direct tactical orders. Stay in character — never use Autobot, Decepticon, or Commander vocabulary.',
+    userPrompt:'You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
 ];
 
 function loadPrompts() {
   try {
     const raw = localStorage.getItem('teletraan-prompts');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      var arr = JSON.parse(raw);
+      // [MIGRATION] Old format had single `content` field. Split it into
+      // themePrompt + userPrompt: everything up to "You are connected to" is theme,
+      // the rest is user. If we can't find the split point, treat whole as themePrompt
+      // and use the default userPrompt. New entries already have both fields.
+      for (var i = 0; i < arr.length; i++) {
+        var p = arr[i];
+        if (p.themePrompt === undefined && p.content !== undefined) {
+          var c = p.content;
+          var idx = c.indexOf('You are connected to the user');
+          if (idx > 0) {
+            p.themePrompt = c.substring(0, idx).replace(/\n+$/, '');
+            p.userPrompt = c.substring(idx);
+          } else {
+            p.themePrompt = c;
+            p.userPrompt = 'You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}';
+          }
+          // Strip "Keep responses under 3 sentences..." from migrated themePrompt
+          p.themePrompt = p.themePrompt.replace(/Keep responses under 3 sentences unless asked for detail\.\s*/g, '');
+          delete p.content;
+        }
+      }
+      return arr;
+    }
   } catch(e){}
   // First run: initialize with STARTER_PROMPTS
   var starters = STARTER_PROMPTS.map(function(p) {
-    return {id:p.id, name:p.name, content:p.content, createdAt:Date.now(), updatedAt:Date.now()};
+    return {id:p.id, name:p.name, themePrompt:p.themePrompt, userPrompt:p.userPrompt, createdAt:Date.now(), updatedAt:Date.now()};
   });
   try { localStorage.setItem('teletraan-prompts', JSON.stringify(starters)); } catch(e){}
   return starters;
@@ -798,9 +834,14 @@ function savePrompts() {
 function getActivePrompt() {
   return prompts.find(function(p){return p.id === currentPromptId;}) || prompts[0] || null;
 }
+// Combine themePrompt + userPrompt into the single system prompt sent to the LLM.
+// Voice-mode length cap is applied separately at the send site (not stored here).
 function syncCfgSystemPrompt() {
   var p = getActivePrompt();
-  cfg.systemPrompt = p ? p.content : DEFAULTS.systemPrompt;
+  if (!p) { cfg.systemPrompt = DEFAULTS.systemPrompt; return; }
+  var theme = p.themePrompt || '';
+  var user = p.userPrompt || '';
+  cfg.systemPrompt = theme + (theme && user ? '\n\n---\n\n' : '') + user;
 }
 
 // ── Multi-conversation schema ──
@@ -960,7 +1001,7 @@ function filterConversations() { renderConversationList(); }
 // ═══════════════════════════════════════════════
 function newPrompt() {
   var id = 'prompt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  prompts.unshift({id:id, name:'New prompt', content:'', createdAt:Date.now(), updatedAt:Date.now()});
+  prompts.unshift({id:id, name:'New prompt', themePrompt:'', userPrompt:'', createdAt:Date.now(), updatedAt:Date.now()});
   currentPromptId = id;
   try { localStorage.setItem('teletraan-current-prompt', id); } catch(e){}
   savePrompts();
@@ -971,12 +1012,12 @@ function newPrompt() {
     toggleConfig();
   }
   populateConfigFields();
-  // Focus the prompt textarea
+  // Focus the theme prompt textarea
   setTimeout(function() {
-    var ta = document.getElementById('cfg-system-prompt');
-    if (ta) { ta.focus(); ta.select(); }
+    var ta = document.getElementById('cfg-theme-prompt');
+    if (ta) { ta.focus(); }
   }, 100);
-  addMessage('system', 'New prompt created. Edit content in CONFIG — System Prompt field.');
+  addMessage('system', 'New prompt created. Edit theme + user prompts in CONFIG.');
 }
 function switchPrompt(id) {
   // Save current textarea content back to previously-active prompt (if edited)
@@ -1030,12 +1071,22 @@ function renamePrompt(p, span) {
   };
 }
 function saveConfigFieldToActivePrompt() {
-  // Sync textarea content to active prompt object before switching/deleting
-  var ta = document.getElementById('cfg-system-prompt');
-  if (!ta) return;
+  // Sync both textareas (theme + user) to active prompt object before switching/deleting
+  var themeTa = document.getElementById('cfg-theme-prompt');
+  var userTa = document.getElementById('cfg-user-prompt');
+  if (!themeTa && !userTa) return;
   var p = getActivePrompt();
-  if (p && p.content !== ta.value) {
-    p.content = ta.value;
+  if (!p) return;
+  var changed = false;
+  if (themeTa && p.themePrompt !== themeTa.value) {
+    p.themePrompt = themeTa.value;
+    changed = true;
+  }
+  if (userTa && p.userPrompt !== userTa.value) {
+    p.userPrompt = userTa.value;
+    changed = true;
+  }
+  if (changed) {
     p.updatedAt = Date.now();
     savePrompts();
     syncCfgSystemPrompt();
@@ -1050,7 +1101,8 @@ function renderPromptList() {
   var filtered = prompts.filter(function(p) {
     if (!search) return true;
     return (p.name || '').toLowerCase().indexOf(search) >= 0 ||
-           (p.content || '').toLowerCase().indexOf(search) >= 0;
+           (p.themePrompt || '').toLowerCase().indexOf(search) >= 0 ||
+           (p.userPrompt || '').toLowerCase().indexOf(search) >= 0;
   });
   for (var i = 0; i < filtered.length; i++) {
     var p = filtered[i];
@@ -1260,11 +1312,13 @@ function applyConfig() {
   var newVoiceEnabled = document.getElementById('cfg-voice-mode').checked;
   cfg.voiceWsEndpoint = document.getElementById('cfg-voice-ws').value.trim() || 'ws://localhost:2701';
   cfg.wakeWord = document.getElementById('cfg-wake-word').value.trim() || THEMES[cfg.theme].wakeWord;
-  // [PROMPT LIBRARY] Save textarea content to active prompt, then sync cfg.systemPrompt
-  var ta = document.getElementById('cfg-system-prompt');
+  // [PROMPT LIBRARY] Save both textareas (theme + user) to active prompt
+  var themeTa = document.getElementById('cfg-theme-prompt');
+  var userTa = document.getElementById('cfg-user-prompt');
   var p = getActivePrompt();
-  if (p && ta) {
-    p.content = ta.value.trim();
+  if (p) {
+    if (themeTa) p.themePrompt = themeTa.value.trim();
+    if (userTa) p.userPrompt = userTa.value.trim();
     p.updatedAt = Date.now();
     savePrompts();
   }
@@ -1309,9 +1363,12 @@ function populateConfigFields() {
   document.getElementById('cfg-voice-mode').checked = cfg.voiceModeEnabled || false;
   document.getElementById('cfg-voice-ws').value = cfg.voiceWsEndpoint || 'ws://localhost:2701';
   document.getElementById('cfg-wake-word').value = cfg.wakeWord || 'teletraan';
-  // [PROMPT LIBRARY] Show active prompt content in textarea
+  // [PROMPT LIBRARY] Show active prompt's theme + user content in two textareas
   var ap = getActivePrompt();
-  document.getElementById('cfg-system-prompt').value = ap ? ap.content : cfg.systemPrompt;
+  var themeTa = document.getElementById('cfg-theme-prompt');
+  var userTa = document.getElementById('cfg-user-prompt');
+  if (themeTa) themeTa.value = ap ? (ap.themePrompt || '') : '';
+  if (userTa) userTa.value = ap ? (ap.userPrompt || '') : '';
   document.getElementById('cfg-mem-tools').checked = cfg.memTools;
   document.getElementById('cfg-weather-enabled').checked = cfg.weatherEnabled;
   document.getElementById('cfg-weather-lat').value = cfg.weatherLat;
@@ -2704,7 +2761,11 @@ async function streamChat(messages, tools, callbacks) {
 async function sendToLLM(userMessage, isEmergency) {
   if (!cfg.model) throw new Error('No model configured. Set model in CONFIG.');
   const tools = getBuiltinTools();
-  const systemPrompt = await resolveVariables(cfg.systemPrompt);
+  var systemPrompt = await resolveVariables(cfg.systemPrompt);
+  // [VOICE MODE] When voice mode is active, TTS reads responses aloud — keep them brief.
+  if (voiceMode.enabled) {
+    systemPrompt += '\n\n[VOICE MODE ACTIVE] Keep responses brief (2-3 sentences). Avoid markdown formatting, headers, and emoji bullet lists — they do not speak well. Prefer plain prose.';
+  }
 
   const messages = [];
   messages.push({role:'system', content:systemPrompt});
@@ -2780,7 +2841,11 @@ async function continueWithToolResults(isEmergency, depth) {
   }
 
   const tools = getBuiltinTools();
-  const systemPrompt = await resolveVariables(cfg.systemPrompt);
+  var systemPrompt = await resolveVariables(cfg.systemPrompt);
+  // [VOICE MODE] When voice mode is active, TTS reads responses aloud — keep them brief.
+  if (voiceMode.enabled) {
+    systemPrompt += '\n\n[VOICE MODE ACTIVE] Keep responses brief (2-3 sentences). Avoid markdown formatting, headers, and emoji bullet lists — they do not speak well. Prefer plain prose.';
+  }
   const messages = [];
   messages.push({role:'system', content:systemPrompt});
   if (activeMemory) messages.push({role:'system', content:'<active_memory>\n'+activeMemory+'\n</active_memory>'});

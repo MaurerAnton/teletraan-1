@@ -15,6 +15,7 @@
 <div class="conn-status">
   <span class="dot warn" id="conn-dot"></span>
   <span id="conn-text">connecting...</span>
+  <button class="conn-refresh" id="conn-refresh" onclick="manualRefresh()" title="Refresh state">↻</button>
 </div>
 
 <!-- Floating timer chip -->
@@ -51,6 +52,8 @@
         </div>
       </div>
       <div class="quick-stats" id="quick-stats"></div>
+      <div class="section-title">Achievements <span id="ach-count">0/0</span></div>
+      <div class="ach-row" id="ach-row"></div>
       <div class="section-title">Today's Practice</div>
       <div id="today-practice"></div>
       <div class="section-title">Squad</div>
@@ -60,6 +63,17 @@
     <!-- ═══════════ TODAY PAGE ═══════════ -->
     <div class="page" id="page-today">
       <div class="page-header"><h1 id="today-month">📅 Loading...</h1></div>
+      <div class="section-title">Today's Schedule</div>
+      <div id="today-schedule"></div>
+      <button class="btn-add" onclick="showModal('schedule')">+ Add Schedule</button>
+      <div class="section-title">Daily Tasks <span id="task-count">0/0</span></div>
+      <div id="daily-todos"></div>
+      <button class="btn-add" onclick="showModal('todo')">+ Add Task</button>
+      <div class="section-title">Diary <span style="font-weight:normal;text-transform:none">— today's note</span></div>
+      <div id="today-diary"></div>
+      <textarea id="today-diary-input" placeholder="What happened today?" style="background:var(--bg);color:var(--txt);border:1px solid var(--border);border-radius:6px;padding:8px;width:100%;min-height:100px;font-family:inherit;font-size:.85em;margin-top:4px;resize:vertical"></textarea>
+      <button class="shop-buy" onclick="addDiaryFromToday()" style="margin-top:4px">Save Entry</button>
+      <div class="section-title">Activity Heatmap</div>
       <div class="heatmap" id="heatmap"></div>
       <div class="heatmap-legend">
         <span class="hm-cell level-0">0</span>
@@ -67,12 +81,6 @@
         <span class="hm-cell level-2">&lt;90m</span>
         <span class="hm-cell level-3">90m+</span>
       </div>
-      <div class="section-title">Today's Schedule</div>
-      <div id="today-schedule"></div>
-      <button class="btn-add" onclick="showModal('schedule')">+ Add Schedule</button>
-      <div class="section-title">Daily Tasks <span id="task-count">0/0</span></div>
-      <div id="daily-todos"></div>
-      <button class="btn-add" onclick="showModal('todo')">+ Add Task</button>
       <div class="section-title">Birthdays</div>
       <div id="birthdays"></div>
       <div class="recommendation" id="recommendation"></div>
@@ -94,7 +102,7 @@
     <!-- ═══════════ MONEY PAGE ═══════════ -->
     <div class="page" id="page-money">
       <div class="page-header">
-        <h1>💰 Money Plan</h1>
+        <h1>💵 Money Plan</h1>
         <span class="monthly-summary" id="monthly-summary"></span>
       </div>
       <div class="money-overview">
@@ -174,7 +182,7 @@
       <span class="tab-icon">📊</span><span class="tab-label">Stats</span>
     </button>
     <button class="tab" data-page="money" onclick="switchTab('money')">
-      <span class="tab-icon">💰</span><span class="tab-label">Money</span>
+      <span class="tab-icon">💵</span><span class="tab-label">Money</span>
     </button>
     <button class="tab" data-page="settings" onclick="switchTab('settings')">
       <span class="tab-icon">⚙</span><span class="tab-label">Settings</span>
@@ -192,7 +200,8 @@
       <button class="effect-btn tired" onclick="logEffect('tired')">😮‍💨 Tired</button>
       <button class="effect-btn drained" onclick="logEffect('drained')">🪫 Drained</button>
     </div>
-    <textarea id="effect-notes" placeholder="Notes (optional)..."></textarea>
+    <button class="effect-notes-toggle" id="effect-notes-toggle" onclick="toggleEffectNotes()">+ Add notes (optional)</button>
+    <textarea id="effect-notes" placeholder="Notes..." class="hidden"></textarea>
     <button class="btn-action" onclick="logEffectWithNotes()">Save</button>
   </div>
 </div>

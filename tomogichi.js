@@ -801,6 +801,19 @@ function logEffect(effect) {
   var notes = document.getElementById('effect-notes').value.trim();
   logEffectWithNotes(effect, notes);
 }
+function toggleEffectNotes() {
+  var ta = document.getElementById('effect-notes');
+  var btn = document.getElementById('effect-notes-toggle');
+  if (ta.classList.contains('hidden')) {
+    ta.classList.remove('hidden');
+    btn.textContent = '− Hide notes';
+    ta.focus();
+  } else {
+    ta.classList.add('hidden');
+    btn.textContent = '+ Add notes (optional)';
+    ta.value = '';
+  }
+}
 function logEffectWithNotes(forceEffect, forceNotes) {
   var effect = forceEffect || 'neutral';
   var notes = forceNotes !== undefined ? forceNotes : document.getElementById('effect-notes').value.trim();
@@ -813,6 +826,11 @@ function logEffectWithNotes(forceEffect, forceNotes) {
   }
   document.getElementById('effect-overlay').classList.add('hidden');
   document.getElementById('effect-notes').value = '';
+  // Reset notes toggle state for next time
+  var ta = document.getElementById('effect-notes');
+  var btn = document.getElementById('effect-notes-toggle');
+  if (ta) ta.classList.add('hidden');
+  if (btn) btn.textContent = '+ Add notes (optional)';
 }
 
 // ═══════════════════════════════════════════════
@@ -913,6 +931,36 @@ function renderGuild() {
       '</div>' +
       '<button class="quick-start" onclick="event.stopPropagation();startTimer(\'' + p.id + '\',\'' + (mainSkill ? mainSkill.name : '') + '\',30)">▶</button>';
     cardsEl.appendChild(card);
+  }
+  // Achievements row — show unlocked as full-color, locked as dimmed
+  var achEl = document.getElementById('ach-row');
+  var achCountEl = document.getElementById('ach-count');
+  if (achEl) {
+    var unlocked = {};
+    var achList = state.master.achievements || [];
+    for (var ui = 0; ui < achList.length; ui++) {
+      // Milestones (created via tool) have .unlocked flag; auto-achievements have no flag (always-on once unlocked_at set)
+      if (achList[ui].unlocked !== false) unlocked[achList[ui].id] = true;
+    }
+    // Also include achievements that pass their check() function — they're "live"
+    var unlockedCount = 0;
+    var html = '';
+    for (var ai = 0; ai < ACHIEVEMENTS.length; ai++) {
+      var ach = ACHIEVEMENTS[ai];
+      var isUnlocked = unlocked[ach.id] || (ach.check && ach.check(state));
+      if (isUnlocked) unlockedCount++;
+      html += '<span class="ach-badge' + (isUnlocked ? '' : ' locked') + '" title="' + escapeHtml(ach.name) + '">' + ach.icon + '</span>';
+    }
+    // Append custom milestones (not in ACHIEVEMENTS list)
+    for (var mi = 0; mi < achList.length; mi++) {
+      var m = achList[mi];
+      var isKnown = ACHIEVEMENTS.some(function(a) { return a.id === m.id; });
+      if (isKnown) continue;
+      if (m.unlocked) unlockedCount++;
+      html += '<span class="ach-badge' + (m.unlocked ? '' : ' locked') + '" title="' + escapeHtml(m.description || m.id) + '">🏆</span>';
+    }
+    achEl.innerHTML = html;
+    if (achCountEl) achCountEl.textContent = unlockedCount + '/' + (ACHIEVEMENTS.length + (achList.length - ACHIEVEMENTS.filter(function(a) { return achList.some(function(m) { return m.id === a.id; }); }).length));
   }
 }
 
@@ -1019,6 +1067,21 @@ function renderToday() {
       todoEl.appendChild(div);
     }
   }
+  // Today's diary entries (shown in Diary section on Today page)
+  var tdEl = document.getElementById('today-diary');
+  if (tdEl) {
+    var todayPrefix = now.toISOString().substring(0, 10);
+    var todayDiary = (state.master.diary_log || []).filter(function(d) {
+      return (d.time || '').substring(0, 10) === todayPrefix;
+    });
+    if (todayDiary.length === 0) {
+      tdEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No entries today</div>';
+    } else {
+      tdEl.innerHTML = todayDiary.map(function(d) {
+        return '<div style="font-size:.75em;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:var(--txt-dim);font-size:.85em">' + (d.time || '').substring(11, 16) + '</span> ' + escapeHtml(d.text || '') + '</div>';
+      }).join('');
+    }
+  }
   // Birthdays
   var bdEl = document.getElementById('birthdays');
   var bdays = state.master.birthdays || [];
@@ -1026,13 +1089,25 @@ function renderToday() {
     bdEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No birthdays</div>';
   } else {
     bdEl.innerHTML = bdays.map(function(b) {
+      // [FIX] Use real Date arithmetic instead of 30-day-month approximation.
+      // Old code: (bm - nowM) * 30 + (bd - nowD) — wraps badly across year boundaries.
       var parts = (b.date || '').split('-');
       var bm = parseInt(parts[0]) || 0, bd = parseInt(parts[1]) || 0;
-      var nowM = now.getMonth() + 1, nowD = now.getDate();
-      var daysAway = (bm - nowM) * 30 + (bd - nowD);
-      var emoji = daysAway === 0 ? '🎂' : daysAway <= 3 ? '🔔' : '';
-      var color = daysAway === 0 ? 'var(--red)' : daysAway <= 3 ? 'var(--amber)' : 'var(--txt-dim)';
-      if (daysAway < -7 || daysAway > 14) return '';  // skip far birthdays
+      if (bm < 1 || bm > 12 || bd < 1 || bd > 31) return '';
+      var nowYear = now.getFullYear();
+      // Try this year's birthday first; if already past, use next year's
+      var bdayThisYear = new Date(nowYear, bm - 1, bd);
+      var diffMs = bdayThisYear.getTime() - now.getTime();
+      var daysAway = Math.round(diffMs / 86400000);
+      if (daysAway < -1) {
+        // Birthday was earlier this year — compute next year's
+        bdayThisYear = new Date(nowYear + 1, bm - 1, bd);
+        daysAway = Math.round((bdayThisYear.getTime() - now.getTime()) / 86400000);
+      }
+      var emoji = daysAway === 0 ? '🎂' : daysAway <= 3 && daysAway >= 0 ? '🔔' : '';
+      var color = daysAway === 0 ? 'var(--red)' : (daysAway >= 0 && daysAway <= 3) ? 'var(--amber)' : 'var(--txt-dim)';
+      // Show upcoming (next 30 days) + today; hide far-future and far-past
+      if (daysAway > 30) return '';
       return '<div style="font-size:.75em;padding:4px 0;color:' + color + '">' + emoji + ' ' + escapeHtml(b.name) + ' — ' + escapeHtml(b.date) + (daysAway === 0 ? ' TODAY!' : daysAway > 0 ? ' (in ' + daysAway + 'd)' : '') + '</div>';
     }).join('') || '<div style="color:var(--txt-dim);font-size:.7em">No upcoming birthdays</div>';
   }
@@ -1478,6 +1553,17 @@ function addDiary() {
   renderSettings();
   showToast('Diary entry saved');
 }
+function addDiaryFromToday() {
+  var ta = document.getElementById('today-diary-input');
+  var text = ta ? ta.value.trim() : '';
+  if (!text) return;
+  state.master.diary_log = state.master.diary_log || [];
+  state.master.diary_log.unshift({text: text, time: new Date().toISOString().substring(0, 19)});
+  saveState();
+  ta.value = '';
+  renderToday();
+  showToast('Diary entry saved');
+}
 function addTask() {
   var text = (document.getElementById('new-task-input') || {}).value || '';
   text = text.trim();
@@ -1831,8 +1917,20 @@ function addCmdFeedEntry(cmd, result) {
 function updateConnStatus(status, msg) {
   var dot = document.getElementById('conn-dot');
   var text = document.getElementById('conn-text');
+  var refresh = document.getElementById('conn-refresh');
   dot.className = 'dot ' + status;
   text.textContent = msg;
+  // Show manual refresh button whenever we're connected (status=ok)
+  if (refresh) refresh.classList.toggle('visible', status === 'ok');
+}
+function manualRefresh() {
+  if (!state) { init(); return; }
+  loadState().then(function() {
+    renderAll();
+    showToast('State refreshed');
+  }).catch(function(e) {
+    showToast('Refresh failed: ' + (e.message || e));
+  });
 }
 
 // ── Utilities ──

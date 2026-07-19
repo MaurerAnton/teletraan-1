@@ -139,6 +139,12 @@ html,body{height:100vh;height:100dvh;overflow:hidden;margin:0;padding:0;
 
 /* Character cards */
 .char-cards{display:flex;flex-direction:column;gap:8px}
+
+/* Achievement badges */
+.ach-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.ach-badge{font-size:1.2em;padding:2px 4px;filter:none;transition:transform .2s;cursor:default}
+.ach-badge.locked{filter:grayscale(1);opacity:.25}
+.ach-badge:hover{transform:scale(1.2)}
 .char-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
   padding:12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .2s}
 .char-card:hover{border-color:var(--blue)}
@@ -317,6 +323,10 @@ html,body{height:100vh;height:100dvh;overflow:hidden;margin:0;padding:0;
 .conn-status .dot.ok{background:var(--green);box-shadow:0 0 4px var(--green)}
 .conn-status .dot.err{background:var(--red);box-shadow:0 0 4px var(--red)}
 .conn-status .dot.warn{background:var(--amber);box-shadow:0 0 4px var(--amber)}
+.conn-refresh{background:none;border:none;color:var(--txt-dim);cursor:pointer;
+  font-size:1.1em;padding:0 0 0 2px;line-height:1;display:none}
+.conn-refresh:hover{color:var(--blue)}
+.conn-refresh.visible{display:inline}
 
 /* ── Overlays ── */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:40;
@@ -338,6 +348,9 @@ html,body{height:100vh;height:100dvh;overflow:hidden;margin:0;padding:0;
 .effect-btn:hover{background:currentColor;color:var(--bg)!important}
 #effect-notes{background:var(--bg);color:var(--txt);border:1px solid var(--border);
   font-family:inherit;font-size:.75em;padding:8px;border-radius:var(--radius-sm);min-height:60px;resize:vertical}
+#effect-notes.hidden{display:none}
+.effect-notes-toggle{background:none;border:none;color:var(--blue);cursor:pointer;
+  font-family:inherit;font-size:.7em;padding:4px 0;text-align:left;width:100%}
 
 /* Buttons */
 .btn-action{padding:12px;border:none;border-radius:var(--radius);cursor:pointer;
@@ -394,8 +407,9 @@ html,body{height:100vh;height:100dvh;overflow:hidden;margin:0;padding:0;
 /* Responsive */
 @media(max-width:600px){
   .money-overview{grid-template-columns:1fr}
-  .tab-label{display:none}
-  .tab-icon{font-size:1.4em}
+  .tab{padding:8px 2px;gap:1px}
+  .tab-icon{font-size:1.25em}
+  .tab-label{font-size:.5em;letter-spacing:.5px}
   .timer-display{font-size:2.5em}
   .cmd-feed{width:100%}
 }

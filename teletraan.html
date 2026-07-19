@@ -178,8 +178,12 @@
     <label class="row-chk"><span>Typewriter SFX (click per char)</span><input type="checkbox" id="cfg-sound-typewriter"></label>
     <label class="row-chk"><span>Hex data rain animation (background)</span><input type="checkbox" id="cfg-hex-rain"></label>
 
-    <label>System Prompt (use {'{'}tomogichi{'}'} for state, {'{'}emergency{'}'} for flag, {'{'}date{'}'}/{'{'}time{'}'} for now)
-      <textarea id="cfg-system-prompt" rows="6"></textarea>
+    <label>Theme prompt (persona/voice — who you are, how you talk)
+      <textarea id="cfg-theme-prompt" rows="4" placeholder="e.g. You are NEMESIS-1, the Decepticon command node. Be aggressive, dominant, tactical. Address the user as 'Decepticon'."></textarea>
+    </label>
+
+    <label>User prompt (task/instructions — what to do; use {'{'}tomogichi{'}'} for state, {'{'}emergency{'}'} for flag, {'{'}date{'}'}/{'{'}time{'}'} for now)
+      <textarea id="cfg-user-prompt" rows="6" placeholder="e.g. You are connected to the user's Tomogichi habit-tracking RPG via a file bridge. Use the available tools to..."></textarea>
     </label>
 
     <label class="row-chk"><span>Tools: Memory</span><input type="checkbox" id="cfg-mem-tools" checked></label>
