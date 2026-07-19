@@ -2082,28 +2082,213 @@ async function sendMessage() {
 // ═══════════════════════════════════════════════
 function toggleMic() {
   if (isRecording) { stopListening(); return; }
-  if (cfg.sttProvider === 'web-speech') sttListen();
+  if (cfg.sttProvider === 'web-speech') {
+    sttListenWebSpeech();
+  } else if (cfg.sttProvider === 'custom' || cfg.sttProvider === 'whisper-cpp') {
+    sttListenCustom();
+  } else {
+    addMessage('error', 'Unknown STT provider: ' + cfg.sttProvider);
+  }
 }
-function sttListen() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { addMessage('error','Speech recognition unavailable.'); return; }
-  // Always create fresh instance (reusing after error fails silently)
+
+// --- Web Speech API (Chrome/Edge only) ---
+function sttListenWebSpeech() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    addMessage('error', 'Web Speech not available in this browser. Use Chrome, or switch to Custom STT (Vosk) in CONFIG.');
+    return;
+  }
   recognition = new SR();
   recognition.continuous = false; recognition.interimResults = true; recognition.lang = 'en-US';
-  recognition.onresult = (e) => {
-    let interim='', final='';
-    for (let i=e.resultIndex;i<e.results.length;i++) { if(e.results[i].isFinal) final+=e.results[i][0].transcript; else interim+=e.results[i][0].transcript; }
-    const input=document.getElementById('msg-input'); input.value=final||interim; input.style.color=final?'':'var(--grey)';
+  recognition.onresult = function(e) {
+    var interim='', final='';
+    for (var i=e.resultIndex;i<e.results.length;i++) { if(e.results[i].isFinal) final+=e.results[i][0].transcript; else interim+=e.results[i][0].transcript; }
+    var input=document.getElementById('msg-input'); input.value=final||interim; input.style.color=final?'':'var(--grey)';
     if (final) { stopListening(); sendMessage(); }
   };
-  recognition.onerror = (e) => { stopListening(); addMessage('error','Speech recognition error: '+e.error); };
-  recognition.onend = () => { stopListening(); };
-  try { recognition.start(); isRecording=true; document.getElementById('btn-mic').classList.add('recording'); document.getElementById('dot-stt').className='dot red'; }
-  catch(e) { stopListening(); }
+  recognition.onerror = function(e) { stopListening(); addMessage('error','Speech recognition error: '+e.error); };
+  recognition.onend = function() { stopListening(); };
+  try {
+    recognition.start();
+    isRecording=true;
+    document.getElementById('btn-mic').classList.add('recording');
+    document.getElementById('dot-stt').className='dot red';
+    addMessage('system', 'Listening... (Web Speech)');
+  } catch(e) { stopListening(); }
 }
+
+// --- Custom STT (Vosk, whisper.cpp, or any HTTP endpoint) ---
+// Records audio via MediaRecorder, sends WAV to cfg.sttEndpoint, gets {"text":"..."} back
+var mediaRecorder = null;
+var audioChunks = [];
+
+function sttListenCustom() {
+  var endpoint = cfg.sttEndpoint;
+  if (!endpoint) {
+    addMessage('error', 'No STT endpoint configured. Set it in CONFIG (e.g. http://localhost:2700 for Vosk).');
+    return;
+  }
+
+  // Check if getUserMedia is available
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    addMessage('error', 'Microphone access not available. Browser may not support it, or page must be served via HTTPS/localhost.');
+    addMessage('system', 'Tip: Open teletraan.html via http://localhost instead of file:// — or use bridge.py to serve it.');
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({audio: true})
+    .then(function(stream) {
+      isRecording = true;
+      document.getElementById('btn-mic').classList.add('recording');
+      document.getElementById('dot-stt').className = 'dot red';
+      addMessage('system', 'Listening... (Custom STT → ' + endpoint + ')');
+
+      // Use MediaRecorder to capture audio
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = function(e) {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = function() {
+        // Stop all audio tracks (releases microphone)
+        stream.getTracks().forEach(function(t) { t.stop(); });
+
+        // Convert recorded audio to WAV
+        var audioBlob = new Blob(audioChunks, {type: 'audio/webm'});
+        blobToWav(audioBlob).then(function(wavBlob) {
+          sendAudioToSTT(wavBlob, endpoint);
+        }).catch(function(e) {
+          addMessage('error', 'Audio conversion failed: ' + e.message);
+          stopListening();
+        });
+      };
+
+      mediaRecorder.start();
+    })
+    .catch(function(e) {
+      addMessage('error', 'Microphone access denied: ' + e.name + ' — ' + e.message);
+      addMessage('system', 'Tip: Allow microphone access in browser settings. May need HTTPS or localhost (not file://).');
+      stopListening();
+    });
+}
+
+// Convert any audio Blob to WAV (16kHz mono, 16-bit PCM — required by Vosk)
+function blobToWav(blob) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      var arrayBuffer = reader.result;
+      // Use AudioContext to decode, then re-encode as WAV
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) { reject(new Error('AudioContext not available')); return; }
+      var ctx = new AudioCtx({sampleRate: 16000});
+      ctx.decodeAudioData(arrayBuffer, function(audioBuffer) {
+        var wav = audioBufferToWav(audioBuffer, 16000);
+        resolve(new Blob([wav], {type: 'audio/wav'}));
+      }, function(e) { reject(new Error('Audio decode failed: ' + e)); });
+    };
+    reader.onerror = function() { reject(new Error('FileReader error')); };
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+// Convert AudioBuffer to WAV ArrayBuffer (16-bit PCM, mono, target sample rate)
+function audioBufferToWav(buffer, targetSampleRate) {
+  var numChannels = 1; // force mono
+  var sampleRate = targetSampleRate || 16000;
+  var numFrames = buffer.length;
+  var bytesPerSample = 2;
+  var blockAlign = numChannels * bytesPerSample;
+  var byteRate = sampleRate * blockAlign;
+  var dataSize = numFrames * blockAlign;
+  var bufferSize = 44 + dataSize;
+
+  var arrayBuffer = new ArrayBuffer(bufferSize);
+  var view = new DataView(arrayBuffer);
+
+  // WAV header
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true); // chunk size
+  view.setUint16(20, 1, true);  // audio format = PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true); // bits per sample
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Audio data — convert float32 to int16
+  var channelData = buffer.getChannelData(0);
+  var offset = 44;
+  for (var i = 0; i < numFrames; i++) {
+    var sample = Math.max(-1, Math.min(1, channelData[i]));
+    sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+    view.setInt16(offset, sample, true);
+    offset += 2;
+  }
+
+  return arrayBuffer;
+}
+
+function writeString(view, offset, str) {
+  for (var i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
+  }
+}
+
+// Send WAV audio to STT endpoint, get text back
+function sendAudioToSTT(wavBlob, endpoint) {
+  addMessage('system', 'Processing speech...');
+
+  fetch(endpoint, {
+    method: 'POST',
+    headers: {'Content-Type': 'audio/wav'},
+    body: wavBlob
+  })
+  .then(function(res) {
+    if (!res.ok) throw new Error('STT server returned ' + res.status);
+    return res.json();
+  })
+  .then(function(data) {
+    var text = data.text || data.transcript || '';
+    if (text.trim()) {
+      var input = document.getElementById('msg-input');
+      input.value = text.trim();
+      addMessage('system', 'Recognized: ' + text.trim());
+      stopListening();
+      sendMessage();
+    } else {
+      addMessage('error', 'No speech detected. Try speaking louder or closer to the mic.');
+      stopListening();
+    }
+  })
+  .catch(function(e) {
+    addMessage('error', 'STT failed: ' + e.message);
+    if (e.message.indexOf('Failed to fetch') >= 0) {
+      addMessage('system', 'Cannot reach STT server at ' + endpoint + '. Is Vosk running?');
+    }
+    stopListening();
+  });
+}
+
 function stopListening() {
+  // Stop Web Speech if active
   if (recognition) { try{recognition.stop()}catch(e){} recognition = null; }
-  isRecording=false; document.getElementById('btn-mic').classList.remove('recording'); document.getElementById('msg-input').style.color='';
+  // Stop MediaRecorder if active
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch(e) {}
+  }
+  mediaRecorder = null;
+  audioChunks = [];
+  isRecording=false;
+  document.getElementById('btn-mic').classList.remove('recording');
+  document.getElementById('msg-input').style.color='';
   updateProtocols();
 }
 
@@ -2297,14 +2482,25 @@ function updateStatus() {
   document.getElementById('status-bridge').style.color = bridgeMode !== 'none' ? 'var(--green)' : 'var(--grey)';
 }
 function updateProtocols() {
-  const sttAvail = !!(window.SpeechRecognition||window.webkitSpeechRecognition);
+  // STT availability depends on provider:
+  //  - web-speech: needs SpeechRecognition (Chrome/Edge only, NOT Firefox/LibreWolf)
+  //  - custom/whisper-cpp: needs cfg.sttEndpoint + getUserMedia (HTTPS or localhost)
+  var sttAvail = false;
+  var sttStatus = 'N/A';
+  if (cfg.sttProvider === 'web-speech') {
+    sttAvail = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    sttStatus = sttAvail ? 'READY' : 'N/A (use Chrome)';
+  } else if (cfg.sttProvider === 'custom' || cfg.sttProvider === 'whisper-cpp') {
+    sttAvail = !!cfg.sttEndpoint;
+    sttStatus = sttAvail ? 'READY' : 'SET URL';
+  }
   // TTS availability depends on provider:
   //  - web-speech: needs window.speechSynthesis
   //  - piper: needs bridge connected (server proxies /tts to Piper)
   //  - custom: needs cfg.ttsEndpoint set
-  const avail = checkTtsAvailable();
-  const ttsAvail = avail.ok;
-  let ttsStatus = 'N/A';
+  var avail = checkTtsAvailable();
+  var ttsAvail = avail.ok;
+  var ttsStatus = 'N/A';
   if (cfg.ttsProvider === 'piper') {
     ttsStatus = ttsAvail ? (ttsEnabled ? 'ON' : 'OFF') : 'START BRIDGE';
   } else if (cfg.ttsProvider === 'custom') {
@@ -2327,7 +2523,15 @@ function updateProtocols() {
   document.getElementById('proto-bridge').textContent = bridgeMode !== 'none' ? 'ONLINE ['+bridgeMode+']' : '--';
 
   const micBtn=document.getElementById('btn-mic'), ttsBtn=document.getElementById('btn-tts');
-  if(!sttAvail){micBtn.disabled=true;micBtn.title='Speech recognition unavailable';}else{micBtn.disabled=false;micBtn.title='Voice input';}
+  if(!sttAvail){
+    micBtn.disabled=false;  // keep clickable so user gets helpful error
+    micBtn.title = cfg.sttProvider === 'web-speech' ? 'Web Speech not available in Firefox — use Custom (Vosk)' :
+                   cfg.sttProvider === 'custom' ? 'Set STT endpoint in CONFIG' :
+                   'Speech recognition unavailable';
+  } else {
+    micBtn.disabled=false;
+    micBtn.title='Voice input ('+cfg.sttProvider+')';
+  }
   // TTS button stays enabled even when unavailable — clicking it shows setup help
   ttsBtn.disabled = false;
   if (!ttsAvail) {
