@@ -3,10 +3,12 @@
    ═══════════════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg-dark:#0a0a1a;--bg-mid:#0d0d24;--blue:#4dc9f6;--green:#2ecc71;
-  --red:#e23e57;--purple:#9b59b6;--grey:#95a5a6;--border:#1a1a3a;
-  --amber:#f39c12;
-  --txt:#4dc9f6;
+  /* Defaults match ARK theme (Teletraan-1 amber/gold on dark grey).
+     Other themes override these via body.theme-X classes. */
+  --bg-dark:#1a1a1a;--bg-mid:#242424;--blue:#ffb000;--green:#2ecc71;
+  --red:#e23e57;--purple:#9b59b6;--grey:#8a8a8a;--border:#3a3a3a;
+  --amber:#ff8c00;
+  --txt:#ffb000;
 }
 html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding:0;
   font-family:'Courier New','Lucida Console','Liberation Mono','DejaVu Sans Mono',monospace;
@@ -348,8 +350,51 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
    through every element that uses var(--X).
    ═══════════════════════════════════════════════ */
 
-/* ARK (default — Autobot blue, no override needed) */
-body.theme-ark{}  /* uses :root defaults */
+/* ARK (Teletraan-1 — amber/gold on dark grey, matching the cartoon's
+   Teletraan-1 screens: yellow text on dark, grey metallic panels) */
+body.theme-ark{
+  --bg-dark:#1a1a1a;      /* dark grey, not blue-tinted */
+  --bg-mid:#242424;       /* metallic grey */
+  --blue:#ffb000;         /* amber/gold — primary accent (Teletraan-1's screen color) */
+  --green:#2ecc71;        /* keep green for 'ok' status (universal) */
+  --red:#e23e57;
+  --purple:#9b59b6;
+  --grey:#8a8a8a;         /* metallic grey */
+  --border:#3a3a3a;
+  --amber:#ff8c00;
+  --txt:#ffb000;
+}
+body.theme-ark #bgcanvas{filter:saturate(.7) brightness(.85)}
+body.theme-ark .corner-glyph{color:#ffb000;text-shadow:0 0 10px #ffb000,0 0 20px #ffb000}
+body.theme-ark .sidebar-header h1{color:#ffb000;text-shadow:0 0 10px #ffb000,0 0 20px #ffb000}
+body.theme-ark .clock{color:#ffb000;text-shadow:0 0 6px #ffb000}
+body.theme-ark .msg-user{color:#ffb000;text-shadow:0 0 4px #ffb000}
+body.theme-ark .msg-ai{color:#f5a623;text-shadow:0 0 4px #f5a623}  /* slightly deeper amber for AI */
+body.theme-ark #msg-input{color:#ffb000}
+body.theme-ark #msg-input:focus{border-color:#ffb000;box-shadow:0 0 8px rgba(255,176,0,.25)}
+body.theme-ark #msg-input::placeholder{color:#8a8a8a}
+body.theme-ark .btn-side{color:#ffb000}
+body.theme-ark .btn-side:hover{border-color:#ffb000;box-shadow:0 0 12px #ffb000;text-shadow:0 0 8px #ffb000}
+body.theme-ark .conv-item-title{color:#ffb000}
+body.theme-ark .conv-item.active{background:rgba(255,176,0,.12);border-color:#ffb000}
+body.theme-ark .conv-item:hover{background:rgba(255,176,0,.06)}
+body.theme-ark .preset-chip.active{border-color:#ffb000;color:#ffb000;box-shadow:0 0 8px #ffb000;background:rgba(255,176,0,.08)}
+body.theme-ark .preset-chip:hover{border-color:#ffb000;color:#ffb000}
+body.theme-ark #config-panel input,#config-panel select,#config-panel textarea{color:#ffb000}
+body.theme-ark #config-panel input:focus,#config-panel select:focus,#config-panel textarea:focus{border-color:#ffb000}
+body.theme-ark .search-box{color:#ffb000}
+body.theme-ark .search-box:focus{border-color:#ffb000}
+body.theme-ark .memory-file-name{color:#ffb000}
+body.theme-ark .toggle-btn:hover{border-color:#ffb000;color:#ffb000}
+body.theme-ark .md-bold{color:#ffb000}
+body.theme-ark .md-table th{color:#ffb000}
+body.theme-ark .md-inline-code{color:#f5a623}
+body.theme-ark .md-code-block{color:#f5a623}
+body.theme-ark .allspark-face{border-color:#ffb000;box-shadow:0 0 12px #ffb000 inset,0 0 12px #ffb000}
+body.theme-ark .allspark-label{color:#ffb000;text-shadow:0 0 8px #ffb000}
+body.theme-ark .energon-label #energon-value{color:#ffb000;text-shadow:0 0 4px #ffb000}
+body.theme-ark #radar-canvas{background:radial-gradient(circle at center,rgba(255,176,0,.04) 0%,rgba(26,26,26,.6) 70%,transparent 100%)}
+body.theme-ark .status-row span:first-child{color:#8a8a8a}  /* label grey, value inherits */
 
 /* NEMESIS (Decepticon — violet/magenta/crimson) */
 body.theme-nemesis{
@@ -368,7 +413,6 @@ body.theme-mass-effect{
 }
 body.theme-mass-effect #bgcanvas{filter:hue-rotate(10deg) saturate(1.1)}
 body.theme-mass-effect .corner-glyph{color:#4a9eff;text-shadow:0 0 10px #4a9eff,0 0 20px #4a9eff}
-/* Mass Effect uses hex tile motifs — keep hex grid but tighten */
 body.theme-mass-effect .sidebar-header h1{letter-spacing:4px}
 
 /* STAR WARS IMPERIAL (black/white/red, vector aesthetic) */
