@@ -609,27 +609,52 @@ function saveConfig() {
 }
 
 // Save config to bridge.py /config endpoint (persistent file on disk)
+// Note: no bridgeMode check — bridge.py may be running even before UI "connects".
+// LibreWolf clears localStorage on restart, so this file is the persistent source of truth.
 function saveConfigToBridge() {
-  if (bridgeMode !== 'server') return;  // only works when bridge is connected
   try {
     var serverUrl = (cfg.bridgeServer || 'http://localhost:9191').replace(/\/+$/, '');
     fetch(serverUrl + '/config', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(cfg)
-    }).catch(function(e) {});  // silent fail — localStorage is the primary store
+    }).catch(function() {});  // silent fail — localStorage is fallback
   } catch(e) {}
 }
 
 // Load config from bridge.py /config endpoint (fallback if localStorage is empty)
+// Note: no bridgeMode check — try the fetch regardless. If bridge isn't running, returns null.
 async function loadConfigFromBridge() {
-  if (bridgeMode !== 'server') return null;
   try {
     var serverUrl = (cfg.bridgeServer || 'http://localhost:9191').replace(/\/+$/, '');
     var res = await fetch(serverUrl + '/config');
     if (!res.ok) return null;
     return await res.json();
   } catch(e) { return null; }
+}
+
+// Sync config with bridge disk file (called after bridge connects):
+//   - If disk has apikey but local doesn't → pull from disk (recover after LibreWolf localStorage clear)
+//   - Otherwise → push local cfg to disk (ensure disk is up to date)
+async function syncConfigWithBridge() {
+  var bridgeCfg = await loadConfigFromBridge();
+  if (!bridgeCfg) {
+    // No config on disk yet — push current local cfg
+    saveConfigToBridge();
+    return;
+  }
+  if (!cfg.apikey && bridgeCfg.apikey) {
+    // Local apikey missing (LibreWolf cleared localStorage) — recover from disk
+    cfg = Object.assign(cfg, bridgeCfg);
+    try { localStorage.setItem('teletraan-config', JSON.stringify(cfg)); } catch(e){}
+    populateConfigFields();
+    updateStatus();
+    updateProtocols();
+    addMessage('system', 'Config restored from bridge file (API key recovered).');
+  } else {
+    // Local has apikey (or no apikey needed) — push local cfg to disk
+    saveConfigToBridge();
+  }
 }
 
 // Persistence helpers
@@ -1181,6 +1206,12 @@ async function selectBridgeDirServer() {
     const fileCount = (data.files && data.files.length) || 0;
     addMessage('system','Bridge connected: ' + dirName);
     addMessage('system','Bridge serves ' + fileCount + ' files' + (data.tts_proxy ? ' + TTS proxy active' : ' (no TTS proxy)'));
+
+    // Sync config with bridge disk file:
+    //  - If local has apikey but disk doesn't → push local to disk
+    //  - If disk has apikey but local doesn't → pull disk to local (recover after LibreWolf clear)
+    //  - If both have apikey → local wins, push to disk
+    syncConfigWithBridge();
 
     startBridgePolling();
   } catch(e) {
@@ -2680,8 +2711,8 @@ function init() {
     addMessage('system','Type a message to begin, Ctrl+B for morning brief.');
 
     if (!cfg.apikey && cfg.endpoint.includes('deepseek.com')) {
-      // API key missing from localStorage — try loading from bridge config file
-      // (LibreWolf may have cleared localStorage on restart)
+      // API key missing from localStorage (LibreWolf cleared it) — try bridge disk file.
+      // Bridge.py may already be running (started by start.sh) even though UI hasn't "connected" yet.
       loadConfigFromBridge().then(function(bridgeCfg) {
         if (bridgeCfg && bridgeCfg.apikey) {
           cfg = Object.assign(cfg, bridgeCfg);
