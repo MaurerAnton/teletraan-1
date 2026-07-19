@@ -241,6 +241,99 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
   transition:width .15s linear}
 .boot-line{font-size:.7em;color:var(--green);text-shadow:0 0 4px var(--green);min-height:1em}
 
+/* ═══════════════════════════════════════════════
+   #6 TRANSFORM-UP ANIMATION
+   Staggered slide-in: sidebar left, terminal up, input bar up
+   ═══════════════════════════════════════════════ */
+@keyframes slideFromLeft{from{opacity:0;transform:translateX(-30px)}to{opacity:1;transform:translateX(0)}}
+@keyframes slideFromBottom{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.app #sidebar{animation:slideFromLeft .5s ease-out 0s both}
+.app #terminal{animation:slideFromBottom .5s ease-out .15s both}
+.app #input-bar{animation:slideFromBottom .5s ease-out .3s both}
+.app #radar-canvas{animation:fadeIn .8s ease-out .5s both}
+.app .energon-meter{animation:fadeIn .8s ease-out .5s both}
+.app .corner-glyph{animation:fadeIn 1s ease-out .8s both}
+
+/* ═══════════════════════════════════════════════
+   #15 CORNER GLYPHS — Animated Cybertronian decoration
+   ═══════════════════════════════════════════════ */
+.corner-glyph{position:fixed;z-index:48;color:var(--blue);font-size:1.6em;
+  text-shadow:0 0 10px var(--blue),0 0 20px var(--blue);pointer-events:none;
+  font-family:'Courier New',monospace;opacity:.35;transition:opacity .3s}
+.corner-glyph.tl{top:6px;left:10px;animation:glyphPulse 4s ease-in-out infinite}
+.corner-glyph.tr{top:6px;right:10px;animation:glyphPulse 4s ease-in-out infinite 1s}
+.corner-glyph.bl{bottom:6px;left:10px;animation:glyphPulse 4s ease-in-out infinite 2s}
+.corner-glyph.br{bottom:6px;right:10px;animation:glyphPulse 4s ease-in-out infinite 3s}
+@keyframes glyphPulse{0%,100%{opacity:.2;transform:scale(.9)}50%{opacity:.55;transform:scale(1.05)}}
+
+/* ═══════════════════════════════════════════════
+   #10 ENERGON METER — LLM latency as horizontal bar
+   ═══════════════════════════════════════════════ */
+.energon-meter{border:1px solid var(--border);padding:8px;border-radius:4px}
+.energon-label{font-size:.6em;color:var(--grey);letter-spacing:2px;margin-bottom:5px;display:flex;justify-content:space-between}
+.energon-label #energon-value{color:var(--blue);text-shadow:0 0 4px var(--blue);letter-spacing:1px}
+.energon-bar{height:6px;background:var(--bg-dark);border-radius:2px;overflow:hidden;border:1px solid var(--border)}
+.energon-fill{height:100%;width:0;background:var(--grey);transition:width .3s,background .3s;box-shadow:0 0 6px currentColor}
+.energon-fill.ok{background:var(--green)}
+.energon-fill.amber{background:var(--amber);animation:energonPulse 1s infinite}
+.energon-fill.err{background:var(--red)}
+.energon-fill.empty{background:var(--grey);width:0;box-shadow:none}
+@keyframes energonPulse{0%,100%{opacity:.7}50%{opacity:1}}
+
+/* ═══════════════════════════════════════════════
+   #11 RADAR — Mini-map with sweep + service blips
+   ═══════════════════════════════════════════════ */
+.radar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:4px}
+#radar-canvas{display:block;border-radius:50%;background:radial-gradient(circle at center,
+  rgba(77,201,246,.04) 0%, rgba(10,10,26,.6) 70%, transparent 100%)}
+.radar-legend{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;width:100%;font-size:.55em;color:var(--grey)}
+.radar-leg{display:flex;align-items:center;gap:4px;letter-spacing:1px}
+.radar-leg .dot{width:6px;height:6px;margin-right:4px}
+
+/* ═══════════════════════════════════════════════
+   #14 ALLSPARK LOADER — Rotating hex prism
+   ═══════════════════════════════════════════════ */
+.allspark-loader{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:12px;z-index:10;
+  pointer-events:none;opacity:0;transition:opacity .25s}
+.allspark-loader.hidden{opacity:0;pointer-events:none}
+.allspark-loader.visible{opacity:1}
+.allspark-prism{width:60px;height:60px;position:relative;animation:prismSpin 4s linear infinite;
+  transform-style:preserve-3d;perspective:200px}
+.allspark-face{position:absolute;width:60px;height:60px;border:1px solid var(--blue);
+  background:rgba(77,201,246,.08);box-shadow:0 0 12px var(--blue) inset,0 0 12px var(--blue);
+  transform-origin:center center}
+.allspark-face.f1{transform:translateZ(30px)}
+.allspark-face.f2{transform:rotateY(180deg) translateZ(30px)}
+.allspark-face.f3{transform:rotateY(90deg) translateZ(30px)}
+.allspark-face.f4{transform:rotateY(-90deg) translateZ(30px)}
+.allspark-face.f5{transform:rotateX(90deg) translateZ(30px)}
+.allspark-face.f6{transform:rotateX(-90deg) translateZ(30px)}
+@keyframes prismSpin{from{transform:rotateX(0) rotateY(0) rotateZ(0)}
+  to{transform:rotateX(360deg) rotateY(360deg) rotateZ(180deg)}}
+.allspark-label{font-size:.65em;letter-spacing:3px;color:var(--blue);
+  text-shadow:0 0 8px var(--blue);animation:allsparkBlink 1.2s ease-in-out infinite}
+@keyframes allsparkBlink{0%,100%{opacity:.6}50%{opacity:1}}
+
+/* ═══════════════════════════════════════════════
+   GLITCH ON ERRORS — Brief text-shiver on addMessage('error')
+   ═══════════════════════════════════════════════ */
+.msg-error{animation:fadeSlide .25s,glitchShake .3s linear 1}
+@keyframes glitchShake{
+  0%{text-shadow:0 0 4px var(--red);transform:translateX(0)}
+  20%{text-shadow:2px 0 #4dc9f6,-2px 0 var(--red);transform:translateX(-1px)}
+  40%{text-shadow:-2px 0 #4dc9f6,2px 0 var(--red);transform:translateX(1px)}
+  60%{text-shadow:1px 0 #9b59b6,-1px 0 var(--red);transform:translateX(0)}
+  100%{text-shadow:0 0 4px var(--red);transform:translateX(0)}}
+
+/* ═══════════════════════════════════════════════
+   FLICKER — Brief sidebar power-surge on reconnect
+   ═══════════════════════════════════════════════ */
+@keyframes flickerSurge{
+  0%{opacity:1}25%{opacity:.7}50%{opacity:1}75%{opacity:.85}100%{opacity:1}}
+.sidebar-surge{animation:flickerSurge .35s ease-out 1}
+
 @media(max-width:1024px){.app{flex-direction:column}
   #sidebar{width:100%;min-width:0;flex-direction:row;flex-wrap:wrap;gap:8px;padding:8px 10px;border-right:none;border-bottom:2px solid var(--border);align-items:center;justify-content:space-between}
   .sidebar-header{border-bottom:none;padding-bottom:0}.sidebar-header h1{font-size:.85em;letter-spacing:2px}.sidebar-header .subtitle{display:none}

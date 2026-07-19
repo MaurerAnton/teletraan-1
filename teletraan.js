@@ -20,6 +20,123 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 
 // ═══════════════════════════════════════════════
+// #9 SOUND SYNTH — Web Audio API (no asset files needed)
+// All sounds synthesized at runtime. Toggle via cfg.soundEnabled.
+// Boot hum: 200→400Hz ramp over 2s
+// Message: 800Hz 50ms sine blip
+// Error: 600→300Hz descending square
+// Reconnect: 400→800Hz ascending sine
+// Tool call: 1000Hz 20ms triangle click
+// Type: variable pitch click per character
+// ═══════════════════════════════════════════════
+const SOUND = {
+  ctx: null,
+  masterGain: null,
+  enabled: true,
+  init() {
+    if (this.ctx) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = 0.15;  // overall volume cap
+      this.masterGain.connect(this.ctx.destination);
+    } catch(e) { this.ctx = null; }
+  },
+  // resume() — needed because browsers suspend AudioContext until user gesture
+  resume() {
+    if (!this.ctx) this.init();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      try { this.ctx.resume(); } catch(e) {}
+    }
+  },
+  // playTone: synth helper
+  //   freqHz: number or function(t) → frequency at time t (seconds since start)
+  //   durSec: total duration
+  //   type: 'sine' | 'square' | 'triangle' | 'sawtooth'
+  //   gain: 0-1 (master is 0.15, so use 1.0 for normal)
+  playTone(freqHz, durSec, type, gain) {
+    if (!this.ctx || !this.enabled) return;
+    type = type || 'sine';
+    gain = (gain === undefined) ? 1.0 : gain;
+    var t0 = this.ctx.currentTime;
+    var osc = this.ctx.createOscillator();
+    var g = this.ctx.createGain();
+    osc.type = type;
+    if (typeof freqHz === 'function') {
+      // schedule frequency curve
+      var steps = 32;
+      for (var i = 0; i <= steps; i++) {
+        var frac = i / steps;
+        osc.frequency.setValueAtTime(freqHz(frac * durSec), t0 + frac * durSec);
+      }
+    } else {
+      osc.frequency.value = freqHz;
+    }
+    // ADSR — short attack, short release to avoid clicks
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + durSec);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start(t0);
+    osc.stop(t0 + durSec + 0.05);
+  },
+  // ── Named sounds ──
+  boot() {
+    if (!this.enabled) return;
+    this.resume();
+    // 200Hz → 400Hz ramp over 2s, sine
+    this.playTone(function(t){return 200 + 200 * (t/2);}, 2.0, 'sine', 0.6);
+  },
+  message() {
+    if (!this.enabled) return;
+    this.resume();
+    this.playTone(880, 0.05, 'sine', 0.5);
+  },
+  error() {
+    if (!this.enabled) return;
+    this.resume();
+    // 600 → 300Hz descending square, 250ms
+    this.playTone(function(t){return 600 - 300 * (t/0.25);}, 0.25, 'square', 0.4);
+  },
+  reconnect() {
+    if (!this.enabled) return;
+    this.resume();
+    // 400 → 800Hz ascending sine, 300ms
+    this.playTone(function(t){return 400 + 400 * (t/0.3);}, 0.3, 'sine', 0.5);
+  },
+  tool() {
+    if (!this.enabled) return;
+    this.resume();
+    this.playTone(1200, 0.02, 'triangle', 0.4);
+  },
+  type(charCode) {
+    if (!this.enabled) return;
+    this.resume();
+    // Pitch varies by char: vowels higher, consonants lower, digits medium, space = soft
+    var c = (charCode || 0);
+    var ch = String.fromCharCode(c).toLowerCase();
+    var freq;
+    if ('aeiou'.indexOf(ch) >= 0) freq = 1400 + Math.random() * 200;
+    else if ('bcdfghjklmnpqrstvwxyz'.indexOf(ch) >= 0) freq = 800 + Math.random() * 150;
+    else if ('0123456789'.indexOf(ch) >= 0) freq = 1100 + Math.random() * 100;
+    else if (c === 32) freq = 400 + Math.random() * 50;  // space — soft
+    else freq = 900 + Math.random() * 200;
+    this.playTone(freq, 0.012, 'triangle', 0.15);
+  },
+  allsparkPing() {
+    if (!this.enabled) return;
+    this.resume();
+    // Soft recurring ping while generating — gentle, not annoying
+    this.playTone(600, 0.08, 'sine', 0.2);
+  },
+};
+// Sync SOUND.enabled with cfg on init and when config changes
+function syncSoundEnabled() { SOUND.enabled = !!(cfg && cfg.soundEnabled); }
+
+// ═══════════════════════════════════════════════
 // TELETRAAN-1 — Agora Desktop Web Bridge
 // Tomogichi <-> LLM communication hub
 // ═══════════════════════════════════════════════
@@ -29,6 +146,7 @@ const DEFAULTS = {
   endpoint:'https://api.deepseek.com', model:'deepseek-v4-flash', apikey:'', bridgeServer:'http://localhost:9191',
   streamEnabled:true, thinkingEnabled:false, reasoningEffort:'high',
   ttsTimeout:60, alwaysShowTimestamps:false,
+  soundEnabled:true, soundTypewriter:false,
   sttProvider:'web-speech', sttEndpoint:'',
   ttsProvider:'web-speech', ttsEndpoint:'', ttsVoice:'default',
   systemPrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
@@ -406,6 +524,8 @@ function applyConfig() {
   cfg.ttsVoice = document.getElementById('cfg-tts-voice').value.trim() || 'default';
   cfg.ttsTimeout = parseInt(document.getElementById('cfg-tts-timeout').value) || 60;
   cfg.alwaysShowTimestamps = document.getElementById('cfg-show-timestamps').checked;
+  cfg.soundEnabled = document.getElementById('cfg-sound-enabled').checked;
+  cfg.soundTypewriter = document.getElementById('cfg-sound-typewriter').checked;
   cfg.systemPrompt = document.getElementById('cfg-system-prompt').value.trim() || DEFAULTS.systemPrompt;
   cfg.memTools = document.getElementById('cfg-mem-tools').checked;
   cfg.weatherEnabled = document.getElementById('cfg-weather-enabled').checked;
@@ -415,6 +535,7 @@ function applyConfig() {
   saveConfig();
   updateStatus();
   updateProtocols();
+  syncSoundEnabled();  // #9 update SOUND module
   toggleConfig();
   addMessage('system','Configuration applied. Saved to localStorage + bridge file.');
 }
@@ -436,6 +557,8 @@ function populateConfigFields() {
   document.getElementById('cfg-tts-voice').value = cfg.ttsVoice;
   document.getElementById('cfg-tts-timeout').value = cfg.ttsTimeout || 60;
   document.getElementById('cfg-show-timestamps').checked = cfg.alwaysShowTimestamps || false;
+  document.getElementById('cfg-sound-enabled').checked = cfg.soundEnabled !== false;  // default true
+  document.getElementById('cfg-sound-typewriter').checked = cfg.soundTypewriter || false;
   document.getElementById('cfg-system-prompt').value = cfg.systemPrompt;
   document.getElementById('cfg-mem-tools').checked = cfg.memTools;
   document.getElementById('cfg-weather-enabled').checked = cfg.weatherEnabled;
@@ -448,7 +571,7 @@ function populateConfigFields() {
 }
 
 // ═══════════════════════════════════════════════
-// CANVAS HEX GRID
+// CANVAS HEX GRID + #7 HEX DATA RAIN
 // ═══════════════════════════════════════════════
 function initCanvas() {
   const c = document.getElementById('bgcanvas'), ctx = c.getContext('2d');
@@ -459,11 +582,36 @@ function initCanvas() {
   const cols = Math.ceil(W / (hexR * 1.5)) + 2, rows = Math.ceil(H / hexH) + 2;
   var pulses = [], pulseTimer = 0, pulseInterval = 2000 + Math.random() * 3000;
   var globalAlpha = 0.12, alphaDir = 1;
+  // #7 Hex data rain — packets travel along hex grid lines
+  var dataPackets = [];
   function spawnPulse() { pulses.push({x:Math.random()*cols, y:Math.random()*rows, life:0, maxLife:40+Math.random()*60}); }
+  function spawnPacket() {
+    // Pick a random hex, random edge direction — packet travels along hex line edges
+    var startCol = Math.floor(Math.random() * cols);
+    var startRow = Math.floor(Math.random() * rows);
+    var dirs = [
+      {dc:1, dr:0}, {dc:-1, dr:0},     // E/W along hex top/bottom
+      {dc:1, dr:-1}, {dc:-1, dr:-1},   // NW/NE up
+      {dc:1, dr:1}, {dc:-1, dr:1},     // SE/SW down
+    ];
+    var d = dirs[Math.floor(Math.random() * dirs.length)];
+    dataPackets.push({
+      col: startCol, row: startRow,
+      dc: d.dc, dr: d.dr,
+      steps: 6 + Math.floor(Math.random() * 8),
+      step: 0,
+      progress: 0,  // 0..1 between current hex and next
+      speed: 0.04 + Math.random() * 0.04,
+      trail: [],
+    });
+  }
   function drawHex(ctx, cx, cy, r) {
     ctx.beginPath();
     for (let i = 0; i < 6; i++) { const a = Math.PI/3*i - Math.PI/6, x = cx + r*Math.cos(a), y = cy + r*Math.sin(a); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); }
     ctx.closePath(); ctx.stroke();
+  }
+  function hexCenter(col, row) {
+    return {x: col*hexR*1.5, y: row*hexH + (col%2===0?0:hexH/2)};
   }
   function draw() {
     ctx.clearRect(0,0,W,H);
@@ -480,9 +628,138 @@ function initCanvas() {
       drawHex(ctx,cx,cy,hexR); p.life++;
       if (p.life >= p.maxLife) pulses.splice(i,1);
     }
+    // #7 Hex data rain — draw packets + trails
+    ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 1.8;
+    for (let i = dataPackets.length-1; i >= 0; i--) {
+      var pkt = dataPackets[i];
+      var from = hexCenter(pkt.col, pkt.row);
+      var toCol = pkt.col + pkt.dc, toRow = pkt.row + pkt.dr;
+      var to = hexCenter(toCol, toRow);
+      // Current position (lerp)
+      var px = from.x + (to.x - from.x) * pkt.progress;
+      var py = from.y + (to.y - from.y) * pkt.progress;
+      // Push to trail
+      pkt.trail.push({x: px, y: py});
+      if (pkt.trail.length > 8) pkt.trail.shift();
+      // Draw trail (fading)
+      for (var t = 0; t < pkt.trail.length - 1; t++) {
+        var ta = t / pkt.trail.length;
+        ctx.globalAlpha = ta * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(pkt.trail[t].x, pkt.trail[t].y);
+        ctx.lineTo(pkt.trail[t+1].x, pkt.trail[t+1].y);
+        ctx.stroke();
+      }
+      // Bright head
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#2ecc71';
+      ctx.beginPath();
+      ctx.arc(px, py, 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Advance
+      pkt.progress += pkt.speed;
+      if (pkt.progress >= 1) {
+        pkt.col = toCol; pkt.row = toRow;
+        pkt.progress = 0;
+        pkt.step++;
+        // Occasionally turn at a junction
+        if (Math.random() < 0.3) {
+          var dirs = [{dc:1,dr:0},{dc:-1,dr:0},{dc:1,dr:-1},{dc:-1,dr:-1},{dc:1,dr:1},{dc:-1,dr:1}];
+          var nd = dirs[Math.floor(Math.random() * dirs.length)];
+          pkt.dc = nd.dc; pkt.dr = nd.dr;
+        }
+        if (pkt.step >= pkt.steps) dataPackets.splice(i, 1);
+      }
+    }
+    // Spawn new packet occasionally
+    if (Math.random() < 0.04 && dataPackets.length < 12) spawnPacket();
     globalAlpha += .0001*alphaDir; if (globalAlpha>.18) alphaDir=-1; if (globalAlpha<.08) alphaDir=1;
     pulseTimer += 16;
     if (pulseTimer >= pulseInterval) { pulseTimer=0; pulseInterval=2000+Math.random()*3000; spawnPulse(); }
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ═══════════════════════════════════════════════
+// #11 RADAR — Mini-map with sweep + service blips
+// ═══════════════════════════════════════════════
+function initRadar() {
+  var c = document.getElementById('radar-canvas');
+  if (!c) return;
+  var ctx = c.getContext('2d');
+  var cx = c.width / 2, cy = c.height / 2;
+  var r = Math.min(cx, cy) - 4;
+  var sweepAngle = 0;
+  // Service blip positions (fixed angle, in radar "ring")
+  // LLM at 0°, Bridge at 90°, TTS at 180°, STT at 270°
+  var services = [
+    {name:'LLM',    angle: -Math.PI/2,        getState: function(){ return cfg.model ? 'ok' : 'off'; }},
+    {name:'BRIDGE', angle: 0,                 getState: function(){ return bridgeMode !== 'none' ? 'ok' : (bridgeReconnectActive ? 'amber' : 'off'); }},
+    {name:'TTS',    angle: Math.PI/2,         getState: function(){ return checkTtsAvailable().ok ? 'ok' : 'off'; }},
+    {name:'STT',    angle: Math.PI,            getState: function(){
+      if (cfg.sttProvider === 'web-speech') return (window.SpeechRecognition || window.webkitSpeechRecognition) ? 'ok' : 'off';
+      return cfg.sttEndpoint ? 'ok' : 'off';
+    }},
+  ];
+  function draw() {
+    ctx.clearRect(0, 0, c.width, c.height);
+    // Rings
+    ctx.strokeStyle = '#1a1a4a';
+    ctx.lineWidth = 0.5;
+    for (var ring = 1; ring <= 3; ring++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * ring / 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Crosshair
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r);
+    ctx.stroke();
+    // Sweep line — rotating, with fading trail
+    for (var trail = 0; trail < 30; trail++) {
+      var a = sweepAngle - trail * 0.05;
+      ctx.globalAlpha = (1 - trail / 30) * 0.5;
+      ctx.strokeStyle = '#4dc9f6';
+      ctx.lineWidth = trail === 0 ? 1.5 : 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    // Service blips
+    for (var i = 0; i < services.length; i++) {
+      var s = services[i];
+      var state = s.getState();
+      var bx = cx + Math.cos(s.angle) * r * 0.75;
+      var by = cy + Math.sin(s.angle) * r * 0.75;
+      var color, glow, pulse = 0;
+      if (state === 'ok') { color = '#2ecc71'; glow = '#2ecc71'; pulse = 0.5 + 0.5 * Math.sin(Date.now() / 400); }
+      else if (state === 'amber') { color = '#f39c12'; glow = '#f39c12'; pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200); }
+      else { color = '#3a3a4a'; glow = '#1a1a3a'; }
+      // Glow
+      ctx.globalAlpha = 0.4 * pulse;
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(bx, by, 6 + pulse * 2, 0, Math.PI * 2);
+      ctx.fill();
+      // Core
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(bx, by, 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Label
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#95a5a6';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(s.name, bx, by + 14);
+    }
+    ctx.globalAlpha = 1;
+    sweepAngle += 0.025;
     requestAnimationFrame(draw);
   }
   draw();
@@ -502,6 +779,8 @@ function logError(msg) {
   lastErrorMsg = msg;
   lastErrorTime = now;
   try { addMessage('error', msg); } catch(e) { console.error('logError failed:', e, 'original:', msg); }
+  // #9 Sound: error descending blip
+  SOUND.error();
 }
 
 // ═══════════════════════════════════════════════
@@ -514,6 +793,9 @@ function addMessage(type, text, silent) {
   if (cfg.alwaysShowTimestamps) el.classList.add('always-timestamp');
   el.onclick = () => el.classList.toggle('show-timestamp');
   el.dataset.timestamp = new Date().toISOString();
+
+  // #9 Sound: blip on AI message arrival (not on user/system/error — those handled separately)
+  if (type === 'ai' && !silent) SOUND.message();
 
   let prefix = '';
   if (type==='user') prefix='> ';
@@ -584,6 +866,10 @@ function typeTextMarkdown(el, prefix, text, idx, cb) {
   if (idx < text.length) {
     el.textContent = prefix + text.substring(0, idx+1);
     scrollDown();
+    // #13 Typewriter SFX — soft click per character (toggle-controlled)
+    if (cfg.soundTypewriter) {
+      SOUND.type(text.charCodeAt(idx));
+    }
     setTimeout(()=>typeTextMarkdown(el, prefix, text, idx+1, cb), 20+Math.random()*20);
   } else {
     el.innerHTML = prefix + renderMarkdown(text);
@@ -797,11 +1083,16 @@ async function sendMessageInternal(text) {
   btn.textContent = 'STOP';
   document.getElementById('status-text').textContent = 'PROCESSING...';
   document.getElementById('dot-status').className = 'dot red';
+  // #14 AllSpark loader — rotating hex prism shown while generating
+  showAllSpark(true);
+  // #9 Sound: subtle ping every 1.5s while generating (stops in finally)
+  var pingInterval = setInterval(function(){ SOUND.allsparkPing(); }, 1500);
   try {
     const t0 = Date.now();
     await sendToLLM(text, false);
     lastResponseTime = ((Date.now() - t0) / 1000).toFixed(1);
     updateConnHealth();
+    updateEnergonMeter();  // #10 energon meter
     const conv = getCurrentConversation();
     if (conv) autoGenerateTitle(conv);
     document.getElementById('status-text').textContent = 'ONLINE';
@@ -815,16 +1106,43 @@ async function sendMessageInternal(text) {
     isGenerating = false;
     btn.classList.remove('stopping');
     btn.textContent = 'SEND';
+    showAllSpark(false);
+    clearInterval(pingInterval);
   }
 }
 
-function updateConnHealth() {
-  const el = document.getElementById('conn-health');
+// #14 AllSpark loader toggle
+function showAllSpark(show) {
+  var el = document.getElementById('allspark-loader');
   if (!el) return;
-  if (lastResponseTime) {
-    el.textContent = '~' + lastResponseTime + 's';
-    el.className = 'conn-health ok';
+  if (show) { el.classList.remove('hidden'); el.classList.add('visible'); }
+  else { el.classList.add('hidden'); el.classList.remove('visible'); }
+}
+
+// #10 Energon meter — update bar + value from lastResponseTime
+function updateEnergonMeter() {
+  var fill = document.getElementById('energon-fill');
+  var val = document.getElementById('energon-value');
+  if (!fill || !val) return;
+  if (!lastResponseTime) {
+    fill.className = 'energon-fill empty';
+    fill.style.width = '0%';
+    val.textContent = '--';
+    return;
   }
+  var secs = parseFloat(lastResponseTime);
+  // Width: 0-15s maps to 0-100% of bar
+  var pct = Math.min(100, secs / 15 * 100);
+  // Color: <3s green, 3-8s amber, >8s red
+  var cls = secs < 3 ? 'ok' : (secs < 8 ? 'amber' : 'err');
+  fill.className = 'energon-fill ' + cls;
+  fill.style.width = pct + '%';
+  val.textContent = secs.toFixed(1) + 's';
+}
+
+function updateConnHealth() {
+  // #10 — old #conn-health span was removed; energon meter replaces it
+  updateEnergonMeter();
 }
 function scrollDown() { const t=document.getElementById('terminal'); requestAnimationFrame(()=>{t.scrollTop=t.scrollHeight;}); }
 function clearTerminal() {
@@ -929,6 +1247,11 @@ function startBridgeAutoReconnect() {
   document.getElementById('dot-bridge').className = 'dot amber';
   document.getElementById('proto-bridge').textContent = 'RECONNECTING';
   addMessage('system', 'Bridge lost. Auto-reconnecting (will keep trying)...');
+  // #5 flicker — sidebar power surge
+  var sb = document.getElementById('sidebar');
+  if (sb) { sb.classList.remove('sidebar-surge'); void sb.offsetWidth; sb.classList.add('sidebar-surge'); }
+  // #9 Sound: reconnect ascending blip
+  SOUND.reconnect();
   attemptReconnect();
 }
 function attemptReconnect() {
@@ -941,11 +1264,15 @@ function attemptReconnect() {
     var serverUrl = cfg.bridgeServer || 'http://localhost:9191';
     var ok = await tryConnectBridge(serverUrl);
     if (!ok && bridgeReconnectActive) {
-      // Throttled status update (only every 5 attempts to avoid spam)
       if (bridgeReconnectAttempts % 5 === 0) {
         addMessage('system', 'Bridge still unreachable after ' + bridgeReconnectAttempts + ' attempts. Will keep trying.');
+        // #9 Sound: keep trying — soft error reminder every 5 attempts
+        SOUND.error();
       }
       attemptReconnect();
+    } else if (ok) {
+      // #9 Sound: successful reconnect
+      SOUND.reconnect();
     }
   }, delay);
 }
@@ -1724,6 +2051,9 @@ function addToolCard(name, args) {
   card.dataset.toolName = name;
   card.dataset.callId = 'call_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
 
+  // #9 Sound: tool call click
+  SOUND.tool();
+
   const header = document.createElement('div');
   header.className = 'tool-card-header';
 
@@ -2373,6 +2703,15 @@ function toggleConfig() {
 // ═══════════════════════════════════════════════
 // KEYBOARD SHORTCUTS
 // ═══════════════════════════════════════════════
+// #9 — resume AudioContext on first user interaction (browser autoplay policy)
+function _soundUnlock() {
+  SOUND.resume();
+  document.removeEventListener('click', _soundUnlock);
+  document.removeEventListener('keydown', _soundUnlock);
+}
+document.addEventListener('click', _soundUnlock);
+document.addEventListener('keydown', _soundUnlock);
+
 document.addEventListener('keydown', (e) => {
   if (e.key==='Escape') {
     var closedSomething = false;
@@ -2407,6 +2746,8 @@ document.getElementById('config-overlay').addEventListener('click', function(e) 
 function showBootScreen() {
   var bs = document.getElementById('boot-screen');
   if (!bs) return;
+  // #9 Sound: boot hum (200→400Hz ramp)
+  SOUND.boot();
   var lines = [
     'INITIALIZING TELETRAAN-1...',
     'LOADING NEURAL MATRIX...',
@@ -2474,9 +2815,12 @@ function init() {
   try {
     showBootScreen();
     initCanvas();
+    initRadar();           // #11 radar mini-map
+    syncSoundEnabled();    // #9 sync SOUND module with cfg
     populateConfigFields();
     updateStatus();
     updateProtocols();
+    updateEnergonMeter();  // #10 initialize energon meter to empty state
 
     // Initialize current conversation
     if (conversations.length === 0) {
