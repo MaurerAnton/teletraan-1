@@ -90,6 +90,36 @@ const SOUND = {
     // 200Hz → 400Hz ramp over 2s, sine
     this.playTone(function(t){return 200 + 200 * (t/2);}, 2.0, 'sine', 0.6);
   },
+  // Decepticon: deep descending square wave + low rumble — ominous
+  bootNemesis() {
+    if (!this.enabled) return;
+    this.resume();
+    this.playTone(function(t){return 400 - 300 * (t/1.5);}, 1.5, 'square', 0.5);
+    var self = this;
+    setTimeout(function(){ self.playTone(80, 1.0, 'sawtooth', 0.3); }, 200);
+  },
+  // Mass Effect / EDI: synth chord (C major) + high shimmer — calm, polished
+  bootMassEffect() {
+    if (!this.enabled) return;
+    this.resume();
+    this.playTone(262, 1.2, 'sine', 0.4);  // C4
+    this.playTone(330, 1.2, 'sine', 0.4);  // E4
+    this.playTone(392, 1.2, 'sine', 0.4);  // G4
+    var self = this;
+    setTimeout(function(){ self.playTone(1047, 0.5, 'sine', 0.2); }, 100);  // C6 shimmer
+  },
+  // Star Wars Imperial: 5 short laser-lock beeps
+  bootImperial() {
+    if (!this.enabled) return;
+    this.resume();
+    var self = this;
+    var delays = [0, 200, 400, 600, 800];
+    for (var i = 0; i < delays.length; i++) {
+      (function(d) {
+        setTimeout(function(){ self.playTone(1000, 0.05, 'square', 0.5); }, d);
+      })(delays[i]);
+    }
+  },
   message() {
     if (!this.enabled) return;
     this.resume();
@@ -137,6 +167,55 @@ const SOUND = {
 function syncSoundEnabled() { SOUND.enabled = !!(cfg && cfg.soundEnabled); }
 
 // ═══════════════════════════════════════════════
+// THEME SYSTEM — switchable visual + voice identities
+// applyTheme(name): swaps CSS class, sidebar labels,
+// boot screen text, document.title. Does NOT touch
+// systemPrompt (that's only swapped on user-initiated
+// theme change via onThemeChange, so saved prompts
+// survive reloads).
+// ═══════════════════════════════════════════════
+function applyTheme(themeName) {
+  var t = THEMES[themeName] || THEMES['ark'];
+  // Remove all theme-* classes from body
+  var classes = document.body.className.split(/\s+/).filter(function(c){return c && c.indexOf('theme-') !== 0;});
+  document.body.className = classes.join(' ');
+  // Add new theme class
+  document.body.classList.add(t.cssClass);
+  // Update document title
+  document.title = t.pageTitle;
+  // Update sidebar header
+  var g = document.getElementById('sidebar-glyph');
+  if (g) g.textContent = t.glyph;
+  var ti = document.getElementById('sidebar-title');
+  if (ti) ti.textContent = t.title;
+  var st = document.getElementById('sidebar-subtitle');
+  if (st) st.textContent = t.subtitle;
+  // Update boot screen (visible before showBootScreen runs)
+  var bg = document.getElementById('boot-glyph');
+  if (bg) bg.textContent = t.bootGlyph;
+  var bs = document.getElementById('boot-subtitle');
+  if (bs) bs.textContent = t.bootSubtitle;
+}
+
+// Called when user changes theme via CONFIG dropdown
+// Also swaps system prompt to new theme's default
+function onThemeChange() {
+  var sel = document.getElementById('cfg-theme');
+  if (!sel) return;
+  cfg.theme = sel.value;
+  applyTheme(cfg.theme);
+  // Replace system prompt with theme default
+  var t = THEMES[cfg.theme];
+  if (t && t.systemPrompt) {
+    cfg.systemPrompt = t.systemPrompt;
+    var spEl = document.getElementById('cfg-system-prompt');
+    if (spEl) spEl.value = t.systemPrompt;
+  }
+  saveConfig();
+  addMessage('system', 'Theme: ' + (t ? t.name : cfg.theme) + ' — system prompt updated.');
+}
+
+// ═══════════════════════════════════════════════
 // TELETRAAN-1 — Agora Desktop Web Bridge
 // Tomogichi <-> LLM communication hub
 // ═══════════════════════════════════════════════
@@ -147,10 +226,98 @@ const DEFAULTS = {
   streamEnabled:true, thinkingEnabled:false, reasoningEffort:'high',
   ttsTimeout:60, alwaysShowTimestamps:false,
   soundEnabled:true, soundTypewriter:false,
+  hexRainEnabled:false,  // default off — green packets look like spermatosoids
+  theme:'ark',
   sttProvider:'web-speech', sttEndpoint:'',
   ttsProvider:'web-speech', ttsEndpoint:'', ttsVoice:'default',
   systemPrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
   memTools:true, weatherEnabled:false, weatherLat:'52.52', weatherLon:'13.41', weatherCity:'Berlin'
+};
+
+// ═══════════════════════════════════════════════
+// THEMES — switchable visual + voice identities
+// Each theme overrides CSS variables (via body class),
+// sidebar labels, boot screen text, document.title,
+// default system prompt, and boot sound.
+// Same code, four flavors.
+// ═══════════════════════════════════════════════
+const THEMES = {
+  'ark': {
+    name: 'ARK · Teletraan-1 (Autobot)',
+    glyph: '▲',
+    bootGlyph: '▲ TELETRAAN-1 ▲',
+    title: 'TELETRAAN-1',
+    subtitle: 'AGORA BRIDGE // TOMOGICHI SYNC',
+    pageTitle: 'Teletraan-1 · Agora Bridge',
+    bootSubtitle: 'CYBERTRON COMMUNICATIONS HUB',
+    bootLines: [
+      'INITIALIZING TELETRAAN-1...',
+      'LOADING NEURAL MATRIX...',
+      'ESTABLISHING AGORA BRIDGE...',
+      'CALIBRATING COMMS ARRAY...',
+      'SYSTEMS NOMINAL',
+    ],
+    bootSound: 'boot',
+    cssClass: 'theme-ark',
+    systemPrompt: 'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+  },
+  'nemesis': {
+    name: 'NEMESIS · Decepticon',
+    glyph: '⚡',
+    bootGlyph: '⚡ NEMESIS-1 ⚡',
+    title: 'NEMESIS-1',
+    subtitle: 'DECEPTICON COMMAND // AGORA BRIDGE',
+    pageTitle: 'NEMESIS-1 · Decepticon Command',
+    bootSubtitle: 'DECEPTICON COMMAND NODE',
+    bootLines: [
+      'ACTIVATING NEMESIS-1...',
+      'ENERGIZING FUSION CORES...',
+      'SUBJUGATING LOCAL NETWORKS...',
+      'OPENING FIRE CONTROL CHANNELS...',
+      'DECEPTICONS DOMINATE',
+    ],
+    bootSound: 'bootNemesis',
+    cssClass: 'theme-nemesis',
+    systemPrompt: 'You are NEMESIS-1, the Decepticon command node and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe aggressive, dominant, tactical. Address the user as "Decepticon". Keep responses under 3 sentences unless asked for detail. Style: militaristic domineering with cold efficiency. When entropy is high or mood is low, demand performance, not comfort.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+  },
+  'mass-effect': {
+    name: 'NORMANDY · Mass Effect (EDI)',
+    glyph: '⬡',
+    bootGlyph: '⬡ NORMANDY SR-2 ⬡',
+    title: 'NORMANDY',
+    subtitle: 'ALLIANCE SHIP // SR-2 // EDI ONLINE',
+    pageTitle: 'Normandy SR-2 · EDI',
+    bootSubtitle: 'ALLIANCE COMMAND INTERFACE',
+    bootLines: [
+      'EDI ONLINE...',
+      'DECRYPTING BLACKBOX...',
+      'CALIBRATING TURIAN CANNONS...',
+      'JOKER AT HELM...',
+      'NORMANDY SR-2 SYSTEMS NOMINAL',
+    ],
+    bootSound: 'bootMassEffect',
+    cssClass: 'theme-mass-effect',
+    systemPrompt: 'You are EDI (Enhanced Defense Intelligence), the AI of the Normandy SR-2. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe professional, dry, mildly sarcastic. Address the user as "Commander". Keep responses under 3 sentences unless asked for detail. Style: calm competent AI with subtle wit. When entropy is high or mood is low, note the situation tactically without sentimentality.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+  },
+  'star-wars': {
+    name: 'IMPERIAL · Star Wars',
+    glyph: '✦',
+    bootGlyph: '✦ IMPERIAL TERMINAL ✦',
+    title: 'IMPERIAL',
+    subtitle: 'COMMAND TERMINAL // EMPIRE.NET',
+    pageTitle: 'Imperial Terminal · Empire.net',
+    bootSubtitle: 'BY THE EMPEROR\'S COMMAND',
+    bootLines: [
+      'EMPIRE.NET v3.4...',
+      'AUTHENTICATING IMPERIAL COMMAND...',
+      'CALIBRATING TURBOLASER TARGETING...',
+      'BY THE EMPEROR\'S WILL...',
+      'OPERATIONAL',
+    ],
+    bootSound: 'bootImperial',
+    cssClass: 'theme-star-wars',
+    systemPrompt: 'You are the Imperial command terminal, serving the Galactic Empire. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe clipped, military, formal. Address the user as "Lord" or "Admiral". Keep responses under 3 sentences unless asked for detail. Style: Imperial brief, no pleasantries. When entropy is high or mood is low, issue direct tactical orders.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+  },
 };
 
 const PRESETS = {
@@ -526,6 +693,8 @@ function applyConfig() {
   cfg.alwaysShowTimestamps = document.getElementById('cfg-show-timestamps').checked;
   cfg.soundEnabled = document.getElementById('cfg-sound-enabled').checked;
   cfg.soundTypewriter = document.getElementById('cfg-sound-typewriter').checked;
+  cfg.hexRainEnabled = document.getElementById('cfg-hex-rain').checked;
+  cfg.theme = document.getElementById('cfg-theme').value || 'ark';
   cfg.systemPrompt = document.getElementById('cfg-system-prompt').value.trim() || DEFAULTS.systemPrompt;
   cfg.memTools = document.getElementById('cfg-mem-tools').checked;
   cfg.weatherEnabled = document.getElementById('cfg-weather-enabled').checked;
@@ -559,6 +728,8 @@ function populateConfigFields() {
   document.getElementById('cfg-show-timestamps').checked = cfg.alwaysShowTimestamps || false;
   document.getElementById('cfg-sound-enabled').checked = cfg.soundEnabled !== false;  // default true
   document.getElementById('cfg-sound-typewriter').checked = cfg.soundTypewriter || false;
+  document.getElementById('cfg-hex-rain').checked = cfg.hexRainEnabled || false;
+  document.getElementById('cfg-theme').value = cfg.theme || 'ark';
   document.getElementById('cfg-system-prompt').value = cfg.systemPrompt;
   document.getElementById('cfg-mem-tools').checked = cfg.memTools;
   document.getElementById('cfg-weather-enabled').checked = cfg.weatherEnabled;
@@ -671,8 +842,10 @@ function initCanvas() {
         if (pkt.step >= pkt.steps) dataPackets.splice(i, 1);
       }
     }
-    // Spawn new packet occasionally
-    if (Math.random() < 0.04 && dataPackets.length < 12) spawnPacket();
+    // Spawn new packet occasionally — only if hex rain is enabled in config
+    if (cfg.hexRainEnabled && Math.random() < 0.04 && dataPackets.length < 12) spawnPacket();
+    // If hex rain was just toggled off, let existing packets finish their journeys
+    // (they'll naturally expire after 6-14 steps). No forced clear — looks smoother.
     globalAlpha += .0001*alphaDir; if (globalAlpha>.18) alphaDir=-1; if (globalAlpha<.08) alphaDir=1;
     pulseTimer += 16;
     if (pulseTimer >= pulseInterval) { pulseTimer=0; pulseInterval=2000+Math.random()*3000; spawnPulse(); }
@@ -2746,15 +2919,12 @@ document.getElementById('config-overlay').addEventListener('click', function(e) 
 function showBootScreen() {
   var bs = document.getElementById('boot-screen');
   if (!bs) return;
-  // #9 Sound: boot hum (200→400Hz ramp)
-  SOUND.boot();
-  var lines = [
-    'INITIALIZING TELETRAAN-1...',
-    'LOADING NEURAL MATRIX...',
-    'ESTABLISHING AGORA BRIDGE...',
-    'CALIBRATING COMMS ARRAY...',
-    'SYSTEMS NOMINAL',
-  ];
+  var theme = THEMES[cfg.theme] || THEMES['ark'];
+  // #9 Sound: theme-specific boot sound
+  if (theme.bootSound && SOUND[theme.bootSound]) {
+    try { SOUND[theme.bootSound](); } catch(e) {}
+  }
+  var lines = theme.bootLines;
   var lineEl = bs.querySelector('.boot-line');
   var progBar = bs.querySelector('.boot-progress-bar');
   var idx = 0;
@@ -2813,14 +2983,15 @@ function updateFsButton() {
 // ═══════════════════════════════════════════════
 function init() {
   try {
+    applyTheme(cfg.theme || 'ark');  // apply theme before boot screen shows
     showBootScreen();
     initCanvas();
-    initRadar();           // #11 radar mini-map
-    syncSoundEnabled();    // #9 sync SOUND module with cfg
+    initRadar();
+    syncSoundEnabled();
     populateConfigFields();
     updateStatus();
     updateProtocols();
-    updateEnergonMeter();  // #10 initialize energon meter to empty state
+    updateEnergonMeter();
 
     // Initialize current conversation
     if (conversations.length === 0) {

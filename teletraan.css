@@ -341,3 +341,47 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
 @media(max-width:768px){#sidebar{padding:4px 6px;gap:4px}.sidebar-header h1{font-size:.75em}.status-block{font-size:.6em;gap:6px}
   .btn-side{font-size:.55em;padding:4px 7px;letter-spacing:1px}.clock{font-size:.6em}#input-bar button{width:34px;height:34px;font-size:1em}
   #msg-input{font-size:.72em;padding:8px}#config-panel{width:96%;max-height:92vh;padding:12px}}
+
+/* ═══════════════════════════════════════════════
+   THEME OVERRIDES — body.theme-X swaps CSS variables
+   All --blue / --green / --bg-dark etc. cascade
+   through every element that uses var(--X).
+   ═══════════════════════════════════════════════ */
+
+/* ARK (default — Autobot blue, no override needed) */
+body.theme-ark{}  /* uses :root defaults */
+
+/* NEMESIS (Decepticon — violet/magenta/crimson) */
+body.theme-nemesis{
+  --bg-dark:#1a0a2e;--bg-mid:#220a3a;--blue:#e23e8e;--green:#c41e3a;
+  --red:#ff2020;--purple:#b847ff;--grey:#6a4a7a;--border:#3a1a4e;
+  --amber:#ff6a00;--txt:#e23e8e;
+}
+body.theme-nemesis #bgcanvas{filter:hue-rotate(280deg) saturate(1.2)}
+body.theme-nemesis .corner-glyph{color:#e23e8e;text-shadow:0 0 10px #e23e8e,0 0 20px #e23e8e}
+
+/* MASS EFFECT (Alliance blue + Cerberus accents) */
+body.theme-mass-effect{
+  --bg-dark:#050a14;--bg-mid:#0a1428;--blue:#4a9eff;--green:#00ff80;
+  --red:#ff2020;--purple:#a020f0;--grey:#6a7a8a;--border:#1a3a5a;
+  --amber:#ff7700;--txt:#4a9eff;
+}
+body.theme-mass-effect #bgcanvas{filter:hue-rotate(10deg) saturate(1.1)}
+body.theme-mass-effect .corner-glyph{color:#4a9eff;text-shadow:0 0 10px #4a9eff,0 0 20px #4a9eff}
+/* Mass Effect uses hex tile motifs — keep hex grid but tighten */
+body.theme-mass-effect .sidebar-header h1{letter-spacing:4px}
+
+/* STAR WARS IMPERIAL (black/white/red, vector aesthetic) */
+body.theme-star-wars{
+  --bg-dark:#000000;--bg-mid:#050505;--blue:#f0f0f0;--green:#00ff00;
+  --red:#ff2020;--purple:#b02020;--grey:#888888;--border:#2a2a2a;
+  --amber:#ff8800;--txt:#f0f0f0;
+}
+body.theme-star-wars #bgcanvas{filter:grayscale(.8) brightness(.7)}
+body.theme-star-wars #scanlines{opacity:.9}
+body.theme-star-wars .corner-glyph{color:#ff2020;text-shadow:0 0 10px #ff2020,0 0 20px #ff2020}
+body.theme-star-wars .sidebar-header h1{color:#f0f0f0;text-shadow:0 0 6px #f0f0f0;letter-spacing:5px}
+body.theme-star-wars .msg-ai{color:#f0f0f0;text-shadow:0 0 4px #f0f0f0}
+body.theme-star-wars .msg-user{color:#4a9eff;text-shadow:0 0 4px #4a9eff}
+body.theme-star-wars .btn-side{color:#f0f0f0;border-color:#2a2a2a}
+body.theme-star-wars .btn-side:hover{border-color:#ff2020;box-shadow:0 0 12px #ff2020;color:#ff2020}

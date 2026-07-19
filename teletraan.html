@@ -18,18 +18,18 @@
 <div class="corner-glyph br">▼</div>
 
 <div id="boot-screen">
-  <div class="glyph">▲ TELETRAAN-1 ▲</div>
-  <div class="boot-text">CYBERTRON COMMUNICATIONS HUB</div>
+  <div class="glyph" id="boot-glyph">▲ TELETRAAN-1 ▲</div>
+  <div class="boot-text" id="boot-subtitle">CYBERTRON COMMUNICATIONS HUB</div>
   <div class="boot-progress"><div class="boot-progress-bar"></div></div>
-  <div class="boot-line">&gt; BOOTING...</div>
+  <div class="boot-line" id="boot-line">&gt; BOOTING...</div>
 </div>
 
 <div class="app">
   <div id="sidebar">
     <div class="sidebar-header">
-      <span class="glyph">▲</span>
-      <h1>TELETRAAN-1</h1>
-      <div class="subtitle">AGORA BRIDGE // TOMOGICHI SYNC</div>
+      <span class="glyph" id="sidebar-glyph">▲</span>
+      <h1 id="sidebar-title">TELETRAAN-1</h1>
+      <div class="subtitle" id="sidebar-subtitle">AGORA BRIDGE // TOMOGICHI SYNC</div>
     </div>
     <div class="status-block">
       <div class="status-row"><span><span class="dot green" id="dot-status"></span>STATUS</span><span id="status-text">ONLINE</span></div>
@@ -100,6 +100,15 @@
   <div id="config-panel">
     <h2>CONFIGURATION</h2>
 
+    <label>THEME
+      <select id="cfg-theme" onchange="onThemeChange()">
+        <option value="ark">ARK · Teletraan-1 (Autobot)</option>
+        <option value="nemesis">NEMESIS · Decepticon</option>
+        <option value="mass-effect">NORMANDY · Mass Effect (EDI)</option>
+        <option value="star-wars">IMPERIAL · Star Wars</option>
+      </select>
+    </label>
+
     <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROVIDER PRESET</div>
     <div class="preset-row">
       <button class="preset-chip" onclick="applyPreset('deepseek-flash')">DeepSeek Flash</button>
@@ -161,6 +170,7 @@
     <label class="row-chk"><span>Always show message timestamps</span><input type="checkbox" id="cfg-show-timestamps"></label>
     <label class="row-chk"><span>Sound effects (boot hum, blips, errors)</span><input type="checkbox" id="cfg-sound-enabled" checked></label>
     <label class="row-chk"><span>Typewriter SFX (click per char)</span><input type="checkbox" id="cfg-sound-typewriter"></label>
+    <label class="row-chk"><span>Hex data rain animation (background)</span><input type="checkbox" id="cfg-hex-rain"></label>
 
     <label>System Prompt (use {'{'}tomogichi{'}'} for state, {'{'}emergency{'}'} for flag, {'{'}date{'}'}/{'{'}time{'}'} for now)
       <textarea id="cfg-system-prompt" rows="6"></textarea>
