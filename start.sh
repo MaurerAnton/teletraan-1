@@ -162,13 +162,19 @@ if [ "$START_STT" = true ]; then
     if curl -s --max-time 1 http://localhost:2700/ >/dev/null 2>&1; then
       echo -e "${GREEN}[vosk]   Already running on http://localhost:2700${NC}"
     else
-      echo -e "${BLUE}[vosk]   Starting Vosk STT server...${NC}"
+      # Auto-install websockets if missing (required for voice mode hands-free)
+      if ! "$PIPER_VENV/bin/python3" -c "import websockets" 2>/dev/null; then
+        echo -e "${BLUE}[vosk]   Installing websockets (one-time, for voice mode)...${NC}"
+        "$PIPER_VENV/bin/pip" install --quiet websockets 2>/dev/null || \
+          echo -e "${YELLOW}[vosk]   pip install websockets failed — voice mode will not work${NC}"
+      fi
+      echo -e "${BLUE}[vosk]   Starting Vosk STT server (HTTP 2700 + WS 2701)...${NC}"
       "$PIPER_VENV/bin/python3" "$VOSK_SCRIPT" >/tmp/vosk.log 2>&1 &
       PIDS+=($!)
-      # Wait for Vosk to be ready
+      # Wait for Vosk HTTP to be ready (WS starts at same time)
       for i in {1..10}; do
         if curl -s --max-time 1 http://localhost:2700/ >/dev/null 2>&1; then
-          echo -e "${GREEN}[vosk]   Ready on http://localhost:2700${NC}"
+          echo -e "${GREEN}[vosk]   Ready on http://localhost:2700 (HTTP) + ws://localhost:2701 (WS)${NC}"
           break
         fi
         sleep 1

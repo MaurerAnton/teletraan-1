@@ -154,6 +154,9 @@
       <select id="cfg-stt-provider"><option value="web-speech">Web Speech</option><option value="whisper-cpp">whisper.cpp</option><option value="custom">Custom</option></select>
     </label>
     <label>STT Endpoint <input type="text" id="cfg-stt-endpoint"></label>
+    <label class="row-chk"><span>Voice mode (hands-free, wake word activated)</span><input type="checkbox" id="cfg-voice-mode"></label>
+    <label>Voice WS endpoint <input type="text" id="cfg-voice-ws" placeholder="ws://localhost:2701"></label>
+    <label>Wake word (theme-aware: teletraan / nemesis / edi / imperial) <input type="text" id="cfg-wake-word" placeholder="teletraan"></label>
     <label>TTS Provider
       <select id="cfg-tts-provider"><option value="web-speech">Web Speech</option><option value="piper">Piper</option><option value="custom">Custom</option></select>
     </label>

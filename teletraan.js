@@ -167,6 +167,291 @@ const SOUND = {
 function syncSoundEnabled() { SOUND.enabled = !!(cfg && cfg.soundEnabled); }
 
 // ═══════════════════════════════════════════════
+// VOICE MODE — hands-free, wake word activated
+//
+// Half-duplex: mic muted while TTS plays (no echo). After TTS finishes,
+// mic reopens automatically.
+//
+// Flow:
+//   idle (listening for wake word)
+//     → [wake word detected] → armed (capturing command)
+//     → [Vosk final result] → strip wake word, sendMessage()
+//     → [LLM responds, TTS plays] → muted (mic paused)
+//     → [TTS ended] → idle (resume listening)
+//
+// WebSocket protocol:
+//   Client sends: 16kHz mono 16-bit PCM binary frames
+//   Server responds: {"partial": "..."} (in-progress)
+//                  | {"text": "...", "result": [...]} (silence detected)
+// ═══════════════════════════════════════════════
+var voiceMode = {
+  enabled: false,
+  ws: null,
+  audioContext: null,
+  mediaStream: null,
+  sourceNode: null,
+  scriptNode: null,
+  state: 'off',  // 'off' | 'idle' | 'armed' | 'muted'
+  partialText: '',
+  reconnectAttempts: 0,
+  reconnectTimer: null,
+};
+
+function enableVoiceMode() {
+  if (voiceMode.enabled) return;
+  voiceMode.enabled = true;
+  setVoiceState('idle');
+  addMessage('system', 'VOICE MODE ON — say "' + (cfg.wakeWord || 'teletraan') + '" to talk. Mic muted during AI speech (half-duplex).');
+  openVoiceWebSocket();
+}
+
+function disableVoiceMode() {
+  voiceMode.enabled = false;
+  closeVoiceWebSocket();
+  stopMicStreaming();
+  if (voiceMode.audioContext) {
+    try { voiceMode.audioContext.close(); } catch(e) {}
+    voiceMode.audioContext = null;
+  }
+  if (voiceMode.mediaStream) {
+    voiceMode.mediaStream.getTracks().forEach(function(t) { t.stop(); });
+    voiceMode.mediaStream = null;
+  }
+  voiceMode.sourceNode = null;
+  voiceMode.scriptNode = null;
+  if (voiceMode.reconnectTimer) { clearTimeout(voiceMode.reconnectTimer); voiceMode.reconnectTimer = null; }
+  voiceMode.reconnectAttempts = 0;
+  // Clear partial text from input
+  var input = document.getElementById('msg-input');
+  if (input && voiceMode.partialText) { input.value = ''; input.style.color = ''; }
+  voiceMode.partialText = '';
+  setVoiceState('off');
+  addMessage('system', 'Voice mode off.');
+}
+
+function openVoiceWebSocket() {
+  var endpoint = cfg.voiceWsEndpoint || 'ws://localhost:2701';
+  try {
+    voiceMode.ws = new WebSocket(endpoint);
+  } catch(e) {
+    logError('Voice WS open failed: ' + e.message);
+    disableVoiceMode();
+    return;
+  }
+  voiceMode.ws.binaryType = 'arraybuffer';
+  voiceMode.ws.onopen = function() {
+    voiceMode.reconnectAttempts = 0;
+    addMessage('system', 'Voice WebSocket connected — listening for wake word "' + (cfg.wakeWord || 'teletraan') + '".');
+    startMicStreaming();
+  };
+  voiceMode.ws.onmessage = function(e) {
+    if (typeof e.data !== 'string') return;
+    try {
+      var data = JSON.parse(e.data);
+      if (data.partial !== undefined) onVoicePartial(data.partial);
+      else if (data.text !== undefined) onVoiceFinal(data.text);
+    } catch(err) { /* ignore parse errors */ }
+  };
+  voiceMode.ws.onclose = function() {
+    voiceMode.ws = null;
+    if (voiceMode.enabled) {
+      addMessage('system', 'Voice WS disconnected — attempting reconnect...');
+      scheduleVoiceReconnect();
+    }
+  };
+  voiceMode.ws.onerror = function() {
+    // errors handled by onclose — silent here
+  };
+}
+
+function closeVoiceWebSocket() {
+  if (voiceMode.ws) {
+    try { voiceMode.ws.close(); } catch(e) {}
+    voiceMode.ws = null;
+  }
+}
+
+function scheduleVoiceReconnect() {
+  if (voiceMode.reconnectTimer) clearTimeout(voiceMode.reconnectTimer);
+  voiceMode.reconnectAttempts++;
+  if (voiceMode.reconnectAttempts > 10) {
+    logError('Voice mode: 10 reconnect attempts failed — disabling voice mode');
+    disableVoiceMode();
+    return;
+  }
+  var delay = Math.min(30000, 1000 * Math.pow(1.5, Math.min(voiceMode.reconnectAttempts, 10)));
+  voiceMode.reconnectTimer = setTimeout(function() {
+    if (voiceMode.enabled) openVoiceWebSocket();
+  }, delay);
+}
+
+async function startMicStreaming() {
+  if (!voiceMode.enabled) return;
+  // If we already have a stream, just reconnect the script node
+  if (voiceMode.mediaStream && voiceMode.audioContext && voiceMode.sourceNode && voiceMode.scriptNode) {
+    try {
+      voiceMode.sourceNode.connect(voiceMode.scriptNode);
+      voiceMode.scriptNode.connect(voiceMode.audioContext.destination);
+    } catch(e) {}
+    return;
+  }
+  try {
+    voiceMode.mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+        sampleRate: 16000
+      }
+    });
+    if (!voiceMode.audioContext) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) {
+        logError('AudioContext not available — voice mode disabled');
+        disableVoiceMode();
+        return;
+      }
+      voiceMode.audioContext = new AC({sampleRate: 16000});
+    }
+    voiceMode.sourceNode = voiceMode.audioContext.createMediaStreamSource(voiceMode.mediaStream);
+    voiceMode.scriptNode = voiceMode.audioContext.createScriptProcessor(4096, 1, 1);
+    voiceMode.scriptNode.onaudioprocess = function(e) {
+      if (!voiceMode.enabled || voiceMode.state === 'muted') return;
+      if (!voiceMode.ws || voiceMode.ws.readyState !== 1) return;  // 1 = OPEN
+      var input = e.inputBuffer.getChannelData(0);
+      // Float32 → Int16 PCM
+      var pcm = new Int16Array(input.length);
+      for (var i = 0; i < input.length; i++) {
+        var s = Math.max(-1, Math.min(1, input[i]));
+        pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      try { voiceMode.ws.send(pcm.buffer); } catch(e) {}
+    };
+    voiceMode.sourceNode.connect(voiceMode.scriptNode);
+    voiceMode.scriptNode.connect(voiceMode.audioContext.destination);
+  } catch(e) {
+    logError('Mic access failed: ' + e.message + ' — voice mode disabled');
+    disableVoiceMode();
+  }
+}
+
+function stopMicStreaming() {
+  if (voiceMode.scriptNode) {
+    try { voiceMode.scriptNode.disconnect(); } catch(e) {}
+  }
+  // Keep mediaStream + audioContext alive for fast resume
+}
+
+function onVoicePartial(text) {
+  if (!voiceMode.enabled || voiceMode.state === 'muted') return;
+  voiceMode.partialText = text;
+  // Show live partial in input field (grey = idle listening, blue = armed capturing)
+  var input = document.getElementById('msg-input');
+  if (input) {
+    input.value = text;
+    input.style.color = voiceMode.state === 'armed' ? 'var(--blue)' : 'var(--grey)';
+  }
+  // Detect wake word while idle
+  if (voiceMode.state === 'idle' && detectWakeWord(text)) {
+    setVoiceState('armed');
+    SOUND.tool();  // subtle confirmation blip
+  }
+}
+
+function onVoiceFinal(text) {
+  if (!voiceMode.enabled || voiceMode.state === 'muted') return;
+  if (voiceMode.state === 'armed') {
+    var cmd = stripWakeWord(text).trim();
+    var input = document.getElementById('msg-input');
+    if (input) { input.value = ''; input.style.color = ''; }
+    voiceMode.partialText = '';
+    if (cmd) {
+      // Got a command — mute mic during LLM processing + TTS playback
+      setVoiceState('muted');
+      stopMicStreaming();
+      addMessage('user', cmd);
+      sendMessageInternal(cmd).then(function() {
+        // After LLM + TTS complete, sendMessageInternal's finally will call
+        // setVoiceState('idle') via the TTS onended hook in ttsSpeak
+        // But if TTS is disabled, we need to resume here
+        if (voiceMode.enabled && voiceMode.state === 'muted') {
+          setVoiceState('idle');
+          startMicStreaming();
+        }
+      });
+    } else {
+      // Wake word alone (user said "teletraan" then paused) — return to listening
+      setVoiceState('idle');
+    }
+  } else {
+    // Final without arming — background noise / non-wake-word speech. Ignore.
+    var input2 = document.getElementById('msg-input');
+    if (input2) input2.value = '';
+    voiceMode.partialText = '';
+  }
+}
+
+function detectWakeWord(text) {
+  var p = (text || '').toLowerCase();
+  var w = (cfg.wakeWord || 'teletraan').toLowerCase().trim();
+  if (!w) return false;
+  // Allow common mishearings
+  var variants = [w];
+  if (w === 'teletraan') variants = ['teletraan', 'teletran', 'telotran', 'tela tran'];
+  if (w === 'nemesis') variants = ['nemesis', 'nemisis', 'nemess'];
+  if (w === 'edi') variants = ['edi', 'edie', 'e d i'];
+  if (w === 'imperial') variants = ['imperial', 'imperil', 'empire'];
+  for (var i = 0; i < variants.length; i++) {
+    if (variants[i] && p.indexOf(variants[i]) >= 0) return true;
+  }
+  return false;
+}
+
+function stripWakeWord(text) {
+  var p = (text || '').toLowerCase();
+  var w = (cfg.wakeWord || 'teletraan').toLowerCase().trim();
+  if (!w) return text;
+  var variants = [w];
+  if (w === 'teletraan') variants = ['teletraan', 'teletran', 'telotran'];
+  if (w === 'nemesis') variants = ['nemesis', 'nemisis'];
+  if (w === 'edi') variants = ['edi'];
+  if (w === 'imperial') variants = ['imperial', 'empire'];
+  for (var i = 0; i < variants.length; i++) {
+    var idx = p.indexOf(variants[i]);
+    if (idx >= 0) {
+      return text.substring(idx + variants[i].length);
+    }
+  }
+  return text;
+}
+
+function setVoiceState(state) {
+  voiceMode.state = state;
+  var dot = document.getElementById('dot-stt');
+  var proto = document.getElementById('proto-stt');
+  if (!dot || !proto) return;
+  switch(state) {
+    case 'off':
+      dot.className = 'dot grey';
+      proto.textContent = 'OFF';
+      break;
+    case 'idle':
+      dot.className = 'dot grey';
+      proto.textContent = 'VOICE:IDLE';
+      break;
+    case 'armed':
+      dot.className = 'dot amber';
+      proto.textContent = 'VOICE:ARMED';
+      break;
+    case 'muted':
+      dot.className = 'dot grey';
+      proto.textContent = 'VOICE:MUTED';
+      break;
+  }
+}
+
+// ═══════════════════════════════════════════════
 // THEME SYSTEM — switchable visual + voice identities
 // applyTheme(name): swaps CSS class, sidebar labels,
 // boot screen text, document.title. Does NOT touch
@@ -261,6 +546,10 @@ const DEFAULTS = {
   soundEnabled:true, soundTypewriter:false,
   hexRainEnabled:false,  // default off — green packets look like spermatosoids
   theme:'teletraan',  // default = original blue/green Cybertronian
+  // Voice mode (hands-free, wake word activated)
+  voiceModeEnabled:false,
+  voiceWsEndpoint:'ws://localhost:2701',
+  wakeWord:'teletraan',  // overridden by theme on theme change if user hasn't customized
   sttProvider:'web-speech', sttEndpoint:'',
   ttsProvider:'web-speech', ttsEndpoint:'', ttsVoice:'default',
   systemPrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
@@ -796,7 +1085,11 @@ function applyConfig() {
   cfg.soundEnabled = document.getElementById('cfg-sound-enabled').checked;
   cfg.soundTypewriter = document.getElementById('cfg-sound-typewriter').checked;
   cfg.hexRainEnabled = document.getElementById('cfg-hex-rain').checked;
-  cfg.theme = document.getElementById('cfg-theme').value || 'ark';
+  cfg.theme = document.getElementById('cfg-theme').value || 'teletraan';
+  // [VOICE MODE] config
+  var newVoiceEnabled = document.getElementById('cfg-voice-mode').checked;
+  cfg.voiceWsEndpoint = document.getElementById('cfg-voice-ws').value.trim() || 'ws://localhost:2701';
+  cfg.wakeWord = document.getElementById('cfg-wake-word').value.trim() || THEMES[cfg.theme].wakeWord;
   cfg.systemPrompt = document.getElementById('cfg-system-prompt').value.trim() || DEFAULTS.systemPrompt;
   cfg.memTools = document.getElementById('cfg-mem-tools').checked;
   cfg.weatherEnabled = document.getElementById('cfg-weather-enabled').checked;
@@ -806,7 +1099,10 @@ function applyConfig() {
   saveConfig();
   updateStatus();
   updateProtocols();
-  syncSoundEnabled();  // #9 update SOUND module
+  syncSoundEnabled();
+  // [VOICE MODE] enable/disable based on checkbox state
+  if (newVoiceEnabled && !voiceMode.enabled) enableVoiceMode();
+  else if (!newVoiceEnabled && voiceMode.enabled) disableVoiceMode();
   toggleConfig();
   addMessage('system','Configuration applied. Saved to localStorage + bridge file.');
 }
@@ -831,7 +1127,10 @@ function populateConfigFields() {
   document.getElementById('cfg-sound-enabled').checked = cfg.soundEnabled !== false;  // default true
   document.getElementById('cfg-sound-typewriter').checked = cfg.soundTypewriter || false;
   document.getElementById('cfg-hex-rain').checked = cfg.hexRainEnabled || false;
-  document.getElementById('cfg-theme').value = cfg.theme || 'ark';
+  document.getElementById('cfg-theme').value = cfg.theme || 'teletraan';
+  document.getElementById('cfg-voice-mode').checked = cfg.voiceModeEnabled || false;
+  document.getElementById('cfg-voice-ws').value = cfg.voiceWsEndpoint || 'ws://localhost:2701';
+  document.getElementById('cfg-wake-word').value = cfg.wakeWord || 'teletraan';
   document.getElementById('cfg-system-prompt').value = cfg.systemPrompt;
   document.getElementById('cfg-mem-tools').checked = cfg.memTools;
   document.getElementById('cfg-weather-enabled').checked = cfg.weatherEnabled;
@@ -2636,6 +2935,11 @@ async function sendMessage() {
 // STT
 // ═══════════════════════════════════════════════
 function toggleMic() {
+  // [VOICE MODE] if voice mode is on, mic is managed automatically — show hint
+  if (voiceMode.enabled) {
+    addMessage('system', 'Voice mode is active — just say "' + (cfg.wakeWord || 'teletraan') + '" to talk.');
+    return;
+  }
   if (isRecording) { stopListening(); return; }
   if (cfg.sttProvider === 'web-speech') {
     sttListenWebSpeech();
@@ -2906,6 +3210,12 @@ async function ttsSpeak(text) {
   if (!ttsEnabled || !text) return;
   const btn = document.getElementById('btn-tts');
 
+  // [VOICE MODE] half-duplex: mute mic during TTS playback
+  if (voiceMode.enabled && voiceMode.state !== 'muted' && voiceMode.state !== 'off') {
+    stopMicStreaming();
+    setVoiceState('muted');
+  }
+
   if (window.speechSynthesis) window.speechSynthesis.cancel();
   if (currentAudio) { try { currentAudio.pause(); currentAudio.src=''; } catch(e){} currentAudio = null; }
 
@@ -2924,11 +3234,15 @@ async function ttsSpeak(text) {
       throw new Error('Unknown TTS provider: ' + cfg.ttsProvider);
     }
   } catch(e) {
-    // [FIX] already surfaced — don't double-log
     addMessage('error', 'TTS error: ' + e.message);
   } finally {
     btn.classList.remove('tts-speaking');
     isSpeaking = false;
+    // [VOICE MODE] unmute mic after TTS finishes (success or failure)
+    if (voiceMode.enabled && voiceMode.state === 'muted') {
+      setVoiceState('idle');
+      startMicStreaming();
+    }
   }
 }
 
@@ -3287,6 +3601,14 @@ function init() {
         if (m.role === 'user') addMessage('user', m.content, true);
         else if (m.role === 'assistant' && m.content) addMessage('ai', m.content, true);
       }
+    }
+
+    // [VOICE MODE] auto-enable if it was enabled in saved config
+    // (delay 1s so boot screen finishes first)
+    if (cfg.voiceModeEnabled) {
+      setTimeout(function() {
+        if (!voiceMode.enabled) enableVoiceMode();
+      }, 1500);
     }
   } catch(e) {
     document.body.innerHTML = '<div style="color:#e23e57;font-family:monospace;padding:20px;font-size:14px;">' +
