@@ -726,6 +726,7 @@ async function applyCommand(cmd) {
 // ═══════════════════════════════════════════════
 
 function startTimer(personId, skillName, plannedMin) {
+  haptic(20);
   // If a timer is already running, just cancel it silently (don't show effect picker —
   // we're switching to a new practice, not ending the old one). The old practice is lost.
   // This matches the Qt app's auto-stop-previous behavior.
@@ -772,6 +773,7 @@ function updateTimerDisplay() {
 }
 
 function stopTimer() {
+  haptic([20,40,20]);
   if (!timerInterval) return;
   clearInterval(timerInterval);
   timerInterval = null;
@@ -798,6 +800,7 @@ function cancelTimer() {
 }
 
 function logEffect(effect) {
+  haptic(15);
   var notes = document.getElementById('effect-notes').value.trim();
   logEffectWithNotes(effect, notes);
 }
@@ -898,7 +901,7 @@ function renderGuild() {
   var tpEl = document.getElementById('today-practice');
   var recent = state.practice_log.slice(-3).reverse();
   if (recent.length === 0) {
-    tpEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No practice yet today</div>';
+    tpEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No practice yet today</div>';
   } else {
     tpEl.innerHTML = recent.map(function(e) {
       var emoji = {energized:'🔋',neutral:'😐',tired:'😮‍💨',drained:'🪫'}[e.effect] || '';
@@ -1004,7 +1007,7 @@ function renderToday() {
   for (var h = 0; h < 7; h++) {
     var hd = document.createElement('div');
     hd.className = 'hm-cell hm-empty';
-    hd.style.cssText = 'font-size:.5em;color:var(--txt-dim);background:transparent';
+    hd.style.cssText = 'font-size:.75em;color:var(--txt-dim);background:transparent';
     hd.textContent = dows[h];
     hmEl.appendChild(hd);
   }
@@ -1031,7 +1034,7 @@ function renderToday() {
   var todayDow = now.getDay();
   var todaySlots = (state.master.calendar || []).filter(function(s) { return s.day === todayDow; });
   if (todaySlots.length === 0) {
-    schedEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No schedule today</div>';
+    schedEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No schedule today</div>';
   } else {
     schedEl.innerHTML = todaySlots.map(function(s) {
       return '<div class="schedule-item"><span class="schedule-time">' + pad(s.hour) + ':' + pad(s.minute) + '</span><span class="schedule-label">' + escapeHtml(s.label || '') + '</span></div>';
@@ -1043,7 +1046,7 @@ function renderToday() {
   var doneCount = todos.filter(function(t) { return t.done; }).length;
   document.getElementById('task-count').textContent = doneCount + '/' + todos.length;
   if (todos.length === 0) {
-    todoEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No tasks today</div>';
+    todoEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No tasks today</div>';
   } else {
     todoEl.innerHTML = '';
     for (var ti = 0; ti < todos.length; ti++) {
@@ -1075,7 +1078,7 @@ function renderToday() {
       return (d.time || '').substring(0, 10) === todayPrefix;
     });
     if (todayDiary.length === 0) {
-      tdEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No entries today</div>';
+      tdEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No entries today</div>';
     } else {
       tdEl.innerHTML = todayDiary.map(function(d) {
         return '<div style="font-size:.75em;padding:4px 0;border-bottom:1px solid var(--border)"><span style="color:var(--txt-dim);font-size:.85em">' + (d.time || '').substring(11, 16) + '</span> ' + escapeHtml(d.text || '') + '</div>';
@@ -1086,7 +1089,7 @@ function renderToday() {
   var bdEl = document.getElementById('birthdays');
   var bdays = state.master.birthdays || [];
   if (bdays.length === 0) {
-    bdEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No birthdays</div>';
+    bdEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No birthdays</div>';
   } else {
     bdEl.innerHTML = bdays.map(function(b) {
       // [FIX] Use real Date arithmetic instead of 30-day-month approximation.
@@ -1109,7 +1112,7 @@ function renderToday() {
       // Show upcoming (next 30 days) + today; hide far-future and far-past
       if (daysAway > 30) return '';
       return '<div style="font-size:.75em;padding:4px 0;color:' + color + '">' + emoji + ' ' + escapeHtml(b.name) + ' — ' + escapeHtml(b.date) + (daysAway === 0 ? ' TODAY!' : daysAway > 0 ? ' (in ' + daysAway + 'd)' : '') + '</div>';
-    }).join('') || '<div style="color:var(--txt-dim);font-size:.7em">No upcoming birthdays</div>';
+    }).join('') || '<div style="color:var(--txt-dim);font-size:.85em">No upcoming birthdays</div>';
   }
   // Recommendation
   var recEl = document.getElementById('recommendation');
@@ -1147,7 +1150,7 @@ function renderStats() {
           '</div></div>';
       }
     }
-    el.innerHTML = html || '<div style="color:var(--txt-dim);font-size:.7em">No skill stats yet</div>';
+    el.innerHTML = html || '<div style="color:var(--txt-dim);font-size:.85em">No skill stats yet</div>';
   } else if (activeStatsTab === 'time') {
     var buckets = [
       {name:'Morning (6-12)', start:6, end:12, counts:{energized:0,neutral:0,tired:0,drained:0}},
@@ -1194,7 +1197,7 @@ function renderStats() {
       return p;
     }).filter(function(p) { return p.total >= 2; }).sort(function(a, b) { return b.energizedPct - a.energizedPct; });
     if (pairArr.length === 0) {
-      el.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">Need at least 2 same-day practices to show chains</div>';
+      el.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">Need at least 2 same-day practices to show chains</div>';
     } else {
       el.innerHTML = pairArr.map(function(p) {
         return '<div class="week-pie-row"><span style="min-width:120px">' + p.name + '</span>' +
@@ -1205,7 +1208,7 @@ function renderStats() {
   } else if (activeStatsTab === 'history') {
     var hist = state.practice_log.slice(-50).reverse();
     if (hist.length === 0) {
-      el.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No practice history yet</div>';
+      el.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No practice history yet</div>';
     } else {
       el.innerHTML = hist.map(function(e) {
         var emoji = {energized:'🔋',neutral:'😐',tired:'😮‍💨',drained:'🪫'}[e.effect] || '';
@@ -1244,7 +1247,7 @@ function renderStats() {
         '<div class="week-pie-bar" style="width:' + pct + '%;background:' + colors[wi3 % 4] + '"></div>' +
         '<span>' + pct + '% (' + h + 'h ' + m + 'm)</span></div>';
     }
-    html += '<div style="font-size:.7em;color:var(--blue);margin-top:8px">Total this week: ' + (totalWeek / 60).toFixed(1) + 'h</div>';
+    html += '<div style="font-size:.85em;color:var(--blue);margin-top:8px">Total this week: ' + (totalWeek / 60).toFixed(1) + 'h</div>';
     el.innerHTML = html;
   }
 }
@@ -1285,12 +1288,12 @@ function renderMoney() {
       '<div class="category-bar-fill" style="width:' + pct + '%"></div>' +
       '<span class="category-amount">' + sym + catTotals[cat].toFixed(2) + '</span></div>';
   }
-  catEl.innerHTML = catHtml || '<div style="color:var(--txt-dim);font-size:.7em">No expenses this month</div>';
+  catEl.innerHTML = catHtml || '<div style="color:var(--txt-dim);font-size:.85em">No expenses this month</div>';
   // Recent expenses
   var recentExp = (fin.expenses || []).slice(-10).reverse();
   var expEl = document.getElementById('recent-expenses');
   if (recentExp.length === 0) {
-    expEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No expenses logged</div>';
+    expEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No expenses logged</div>';
   } else {
     expEl.innerHTML = recentExp.map(function(e) {
       return '<div class="expense-row"><span class="expense-date">' + (e.date || '').substring(5) + '</span>' +
@@ -1302,7 +1305,7 @@ function renderMoney() {
   var goalsEl = document.getElementById('savings-goals');
   var goals = fin.savings_goals || [];
   if (goals.length === 0) {
-    goalsEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.7em">No savings goals</div>';
+    goalsEl.innerHTML = '<div style="color:var(--txt-dim);font-size:.85em">No savings goals</div>';
   } else {
     goalsEl.innerHTML = goals.map(function(g, idx) {
       var pct = g.target > 0 ? Math.min(100, (g.current / g.target) * 100) : 0;
@@ -1321,7 +1324,7 @@ function renderSettings() {
     el.innerHTML = '<div style="margin-bottom:8px"><input type="text" id="new-task-input" placeholder="New task..." style="background:var(--bg);color:var(--txt);border:1px solid var(--border);border-radius:6px;padding:6px;width:70%"><button class="shop-buy" onclick="addTask()" style="margin-left:4px">Add</button></div>' +
       tasks.map(function(t) {
         return '<div class="todo-item"><div class="todo-check ' + (t.done ? 'done' : '') + '"></div><span class="todo-text ' + (t.done ? 'done' : '') + '">' + escapeHtml(t.text) + '</span><button class="todo-delete" onclick="deleteTask(' + t.id + ')">✕</button></div>';
-      }).join('') || '<div style="color:var(--txt-dim);font-size:.7em">No tasks</div>';
+      }).join('') || '<div style="color:var(--txt-dim);font-size:.85em">No tasks</div>';
     (function() {
       var checks = el.querySelectorAll('.todo-check');
       for (var i = 0; i < checks.length; i++) {
@@ -1344,7 +1347,7 @@ function renderSettings() {
             '<span>' + (ch.person || 'any') + ' · ' + (ch.skill || 'any') + '</span>' +
             '<span class="challenge-reward">+' + ch.coin_reward + '💰</span>' +
           '</div></div>';
-      }).join('') || '<div style="color:var(--txt-dim);font-size:.7em">No challenges</div>';
+      }).join('') || '<div style="color:var(--txt-dim);font-size:.85em">No challenges</div>';
   } else if (activeSettingsTab === 'journal') {
     // Mood chips
     var moodHtml = '<div class="mood-grid">';
@@ -1356,17 +1359,17 @@ function renderSettings() {
     // Mood history
     var moods = (state.master.mood_log || []).slice(-10).reverse();
     moodHtml += '<div class="section-title">Mood History</div>';
-    if (moods.length === 0) moodHtml += '<div style="color:var(--txt-dim);font-size:.7em">No moods logged</div>';
+    if (moods.length === 0) moodHtml += '<div style="color:var(--txt-dim);font-size:.85em">No moods logged</div>';
     else moodHtml += moods.map(function(m) {
       var emoji = (MOOD_WORDS.find(function(mw) { return mw.word === m.word; }) || {}).emoji || '';
-      return '<div style="font-size:.7em;padding:2px 0">' + (m.time || '').substring(0, 16).replace('T', ' ') + ' ' + emoji + ' ' + m.word + '</div>';
+      return '<div style="font-size:.85em;padding:2px 0">' + (m.time || '').substring(0, 16).replace('T', ' ') + ' ' + emoji + ' ' + m.word + '</div>';
     }).join('');
     // Diary
     moodHtml += '<div class="section-title">Diary</div>';
     var diary = state.master.diary_log || [];
     if (diary.length > 0) {
       moodHtml += diary.slice(0, 5).map(function(d) {
-        return '<div style="font-size:.7em;padding:4px 0;border-bottom:1px solid var(--border)"><div style="color:var(--txt-dim);font-size:.85em">' + (d.time || '').substring(0, 16).replace('T',' ') + '</div><div>' + escapeHtml(d.text || '') + '</div></div>';
+        return '<div style="font-size:.85em;padding:4px 0;border-bottom:1px solid var(--border)"><div style="color:var(--txt-dim);font-size:.85em">' + (d.time || '').substring(0, 16).replace('T',' ') + '</div><div>' + escapeHtml(d.text || '') + '</div></div>';
       }).join('');
     }
     moodHtml += '<textarea id="diary-input" placeholder="What happened today?" style="background:var(--bg);color:var(--txt);border:1px solid var(--border);border-radius:6px;padding:8px;width:100%;min-height:60px;font-family:inherit;font-size:.8em;margin-top:4px"></textarea>' +
@@ -1384,7 +1387,7 @@ function renderSettings() {
         }).join('');
       }
     }
-    el.innerHTML = html || '<div style="color:var(--txt-dim);font-size:.7em">No archived skills</div>';
+    el.innerHTML = html || '<div style="color:var(--txt-dim);font-size:.85em">No archived skills</div>';
   } else if (activeSettingsTab === 'shop') {
     if (!shopEnabled) {
       el.innerHTML = '<div style="color:var(--txt-dim);font-size:.8em;text-align:center;padding:20px">Shop disabled. Enable in System tab.</div>';
@@ -1421,7 +1424,7 @@ function renderSettings() {
       '<div style="font-size:.75em;padding:8px 0;border-bottom:1px solid var(--border)"><button class="shop-buy" onclick="toggleStateInspector()">🔍 State Inspector</button></div>' +
       '<div style="font-size:.75em;padding:8px 0;border-bottom:1px solid var(--border)"><button class="shop-buy" onclick="toggleCmdFeed()">📡 AI Command Feed</button></div>' +
       '<div style="font-size:.75em;padding:8px 0;border-bottom:1px solid var(--border)"><button class="shop-buy" onclick="triggerEmergency()">⚡ Emergency Flag</button></div>' +
-      '<div style="font-size:.65em;color:var(--txt-dim);padding:8px 0;text-align:center">Tomogichi Web v0.1 — faithful port</div>';
+      '<div style="font-size:.85em;color:var(--txt-dim);padding:8px 0;text-align:center">Tomogichi Web v0.1 — faithful port</div>';
   }
 }
 
@@ -1459,7 +1462,7 @@ function showPersonPage(personId) {
   var detailEl = document.getElementById('person-detail');
   var html = '<div class="person-header"><span class="person-glyph">' + glyph + '</span>' +
     '<div><div style="font-size:1em;font-weight:bold">' + p.name + '</div>' +
-    '<div style="font-size:.7em;color:var(--txt-dim)">' + p.role + ' · Lvl ' + lvl + ' ' + title + ' · ' + totalPersonXP(p) + ' XP</div></div></div>';
+    '<div style="font-size:.85em;color:var(--txt-dim)">' + p.role + ' · Lvl ' + lvl + ' ' + title + ' · ' + totalPersonXP(p) + ' XP</div></div></div>';
   html += '<div class="section-title">Skills</div>';
   for (var i = 0; i < p.skills.length; i++) {
     var s = p.skills[i];
@@ -1473,7 +1476,7 @@ function showPersonPage(personId) {
       '<span class="skill-name' + (s.is_main ? ' main' : '') + '">' + s.name + '</span>' +
       '<span class="skill-level">lvl ' + sLvl + '</span>' +
       '<div class="skill-bar"><div class="skill-bar-fill ' + warmth + '" style="width:' + pct + '%"></div></div>' +
-      '<span style="font-size:.7em;color:' + (daysAgo >= 6 ? 'var(--grey)' : daysAgo >= 3 ? 'var(--amber)' : 'var(--green)') + '">' + (daysAgo === 999 ? 'never' : daysAgo + 'd ago') + '</span>' +
+      '<span style="font-size:.85em;color:' + (daysAgo >= 6 ? 'var(--grey)' : daysAgo >= 3 ? 'var(--amber)' : 'var(--green)') + '">' + (daysAgo === 999 ? 'never' : daysAgo + 'd ago') + '</span>' +
       '<div class="skill-actions">' +
         '<button onclick="startTimer(\'' + p.id + '\',\'' + s.name + '\',30)">▶</button>' +
       '</div></div>';
@@ -1595,6 +1598,7 @@ function deleteBirthday(idx) {
   renderSettings();
 }
 function buyShopItem(itemId) {
+  haptic(25);
   var item = SHOP_ITEMS.find(function(i) { return i.id === itemId; });
   if (!item) return;
   if ((state.master.coins || 0) < item.cost) { showToast('Not enough coins!'); return; }
@@ -1716,9 +1720,17 @@ function dismissOnboarding() {
 }
 
 // ── Toast ──
+// Haptic feedback — uses Vibration API on mobile (harmless on desktop, no-op if unsupported)
+function haptic(pattern) {
+  try {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch(e) {}
+}
+
 function showToast(msg) {
+  haptic(30);
   var toast = document.createElement('div');
-  toast.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--bg-mid);color:var(--txt);padding:8px 16px;border-radius:6px;border:1px solid var(--border);font-size:.75em;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+  toast.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:var(--bg-mid);color:var(--txt);padding:10px 18px;border-radius:8px;border:1px solid var(--border);font-size:.85em;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.3)';
   toast.textContent = msg;
   document.body.appendChild(toast);
   setTimeout(function() { toast.remove(); }, 2500);
@@ -1955,14 +1967,52 @@ async function init() {
     document.querySelector('.app').innerHTML = '<div style="padding:20px;text-align:center;color:var(--red)">' +
       '<h2 style="margin-bottom:10px">BRIDGE NOT RUNNING</h2>' +
       '<p style="font-size:.8em;color:var(--txt-dim)">Start bridge.py first:</p>' +
-      '<pre style="font-size:.7em;margin-top:10px;color:var(--blue)">python3 bridge.py ~/.local/share/tomogichi-qt/</pre>' +
-      '<p style="font-size:.7em;color:var(--txt-dim);margin-top:10px">Then open http://localhost:9191/tomogichi.html</p></div>';
+      '<pre style="font-size:.85em;margin-top:10px;color:var(--blue)">python3 bridge.py ~/.local/share/tomogichi-qt/</pre>' +
+      '<p style="font-size:.85em;color:var(--txt-dim);margin-top:10px">Then open http://localhost:9191/tomogichi.html</p></div>';
     return;
   }
   await loadState();
   // Start polling for AI commands every 2s
   pollTimer = setInterval(pollCommands, 2000);
   checkLock();
+  // Swipe between tabs (left/right swipe on page-stack)
+  initSwipeNav();
+}
+
+// Swipe navigation between tabs
+function initSwipeNav() {
+  var stack = document.querySelector('.page-stack');
+  if (!stack) return;
+  var startX = 0, startY = 0, startT = 0;
+  stack.addEventListener('touchstart', function(e) {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startT = Date.now();
+  }, {passive: true});
+  stack.addEventListener('touchend', function(e) {
+    if (!startX) return;
+    var dx = e.changedTouches[0].clientX - startX;
+    var dy = e.changedTouches[0].clientY - startY;
+    var dt = Date.now() - startT;
+    startX = 0;
+    // Only horizontal swipes, > 60px, < 500ms, horizontal >> vertical
+    if (dt > 500) return;
+    if (Math.abs(dx) < 60) return;
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    var tabs = ['guild', 'today', 'stats', 'money', 'settings'];
+    var idx = tabs.indexOf(activePage);
+    if (idx < 0) return;
+    if (dx > 0 && idx > 0) {
+      // Swipe right → previous tab
+      switchTab(tabs[idx - 1]);
+      haptic(15);
+    } else if (dx < 0 && idx < tabs.length - 1) {
+      // Swipe left → next tab
+      switchTab(tabs[idx + 1]);
+      haptic(15);
+    }
+  }, {passive: true});
 }
 
 window.addEventListener('load', init);

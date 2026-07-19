@@ -17,6 +17,18 @@
 <div class="corner-glyph bl" id="corner-bl">◆</div>
 <div class="corner-glyph br" id="corner-br">▼</div>
 
+<!-- Quick theme switcher (floating, bottom-right) -->
+<div id="theme-switcher" class="theme-switcher">
+  <button id="theme-switcher-btn" onclick="toggleThemeSwitcher()" title="Switch theme">🎨</button>
+  <div id="theme-switcher-menu" class="theme-switcher-menu hidden">
+    <button onclick="quickSwitchTheme('teletraan')">▲ Teletraan</button>
+    <button onclick="quickSwitchTheme('ark')">◆ Ark</button>
+    <button onclick="quickSwitchTheme('nemesis')">⚡ Nemesis</button>
+    <button onclick="quickSwitchTheme('mass-effect')">⬡ Normandy</button>
+    <button onclick="quickSwitchTheme('star-wars')">✦ Imperial</button>
+  </div>
+</div>
+
 <div id="boot-screen">
   <div class="glyph" id="boot-glyph">▲ TELETRAAN-1 ▲</div>
   <div class="boot-text" id="boot-subtitle">CYBERTRON COMMUNICATIONS HUB</div>
@@ -38,7 +50,7 @@
     </div>
     <div class="clock" id="clock">--</div>
     <div class="status-block">
-      <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROTOCOLS</div>
+      <div style="font-size:.8em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROTOCOLS</div>
       <div class="status-row"><span><span class="dot grey" id="dot-stt"></span>STT</span><span id="proto-stt">--</span></div>
       <div class="status-row"><span><span class="dot green" id="dot-llm"></span>LLM</span><span id="proto-llm">READY</span></div>
       <div class="status-row"><span><span class="dot grey" id="dot-tts"></span>TTS</span><span id="proto-tts">--</span></div>
@@ -67,11 +79,11 @@
       <div class="active-prompt-name" id="active-prompt-name">—</div>
     </div>
 
-    <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-top:4px">PROMPTS</div>
+    <div style="font-size:.8em;color:var(--grey);letter-spacing:2px;margin-top:4px">PROMPTS</div>
     <input type="text" class="search-box" id="prompt-search" placeholder="Search prompts..." oninput="filterPrompts()">
     <div class="conv-list" id="prompt-list" style="max-height:120px"></div>
 
-    <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-top:4px">CONVERSATIONS</div>
+    <div style="font-size:.8em;color:var(--grey);letter-spacing:2px;margin-top:4px">CONVERSATIONS</div>
     <input type="text" class="search-box" id="conv-search" placeholder="Search conversations..." oninput="filterConversations()">
     <div class="conv-list" id="conv-list"></div>
 
@@ -112,7 +124,7 @@
       </select>
     </label>
 
-    <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROVIDER PRESET</div>
+    <div style="font-size:.8em;color:var(--grey);letter-spacing:2px;margin-bottom:4px">PROVIDER PRESET</div>
     <div class="preset-row">
       <button class="preset-chip" onclick="applyPreset('deepseek-flash')">DeepSeek Flash</button>
       <button class="preset-chip" onclick="applyPreset('deepseek-pro')">DeepSeek Pro</button>
@@ -146,14 +158,14 @@
     </label>
 
     <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
-      <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:8px">TOMOGICHI BRIDGE</div>
+      <div style="font-size:.8em;color:var(--grey);letter-spacing:2px;margin-bottom:8px">TOMOGICHI BRIDGE</div>
       <div class="bridge-status inactive" id="bridge-status-msg">BRIDGE NOT CONNECTED — select Tomogichi data directory</div>
     </div>
     <label>Tomogichi Data Directory
       <div style="display:flex;gap:8px">
         <input type="text" id="cfg-bridge-dir" placeholder="~/.local/share/tomogichi-qt/" style="flex:1">
         <button onclick="selectBridgeDir()" style="background:transparent;border:1px solid var(--border);color:var(--blue);
-          font-family:inherit;font-size:.7em;padding:4px 10px;cursor:pointer;white-space:nowrap;border-radius:3px">SELECT</button>
+          font-family:inherit;font-size:.85em;padding:4px 10px;cursor:pointer;white-space:nowrap;border-radius:3px">SELECT</button>
       </div>
     </label>
     <label>Bridge Server URL (Firefox mode)
@@ -193,7 +205,7 @@
     <label>City name <input type="text" id="cfg-weather-city" placeholder="Berlin"></label>
 
     <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
-      <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-bottom:8px">DATA TOOLS</div>
+      <div style="font-size:.8em;color:var(--grey);letter-spacing:2px;margin-bottom:8px">DATA TOOLS</div>
       <div class="config-buttons" style="margin-bottom:8px">
         <button onclick="toggleMemoryPanel()" style="min-width:auto">🧠 MEMORY</button>
         <button onclick="togglePinnedDrawer()" style="min-width:auto">★ PINNED</button>
@@ -217,9 +229,9 @@
 
 <div class="memory-panel" id="memory-panel">
   <h3>🧠 MEMORY FILES</h3>
-  <div style="font-size:.65em;color:var(--grey);letter-spacing:1px;margin-bottom:4px">ACTIVE MEMORY</div>
+  <div style="font-size:.8em;color:var(--grey);letter-spacing:1px;margin-bottom:4px">ACTIVE MEMORY</div>
   <div class="memory-active" id="memory-active-view">(empty)</div>
-  <div style="font-size:.65em;color:var(--grey);letter-spacing:1px;margin-bottom:4px">SAVED FILES</div>
+  <div style="font-size:.8em;color:var(--grey);letter-spacing:1px;margin-bottom:4px">SAVED FILES</div>
   <div id="memory-files-list"></div>
   <button class="btn-side" onclick="toggleMemoryPanel()" style="margin-top:8px">CLOSE</button>
 </div>

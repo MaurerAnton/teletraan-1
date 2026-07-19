@@ -527,6 +527,44 @@ function onThemeChange() {
   reinitCanvas();
 }
 
+// Quick theme switcher — floating button, no CONFIG needed
+function toggleThemeSwitcher() {
+  var menu = document.getElementById('theme-switcher-menu');
+  if (menu) menu.classList.toggle('hidden');
+}
+function quickSwitchTheme(name) {
+  cfg.theme = name;
+  applyTheme(name);
+  var t = THEMES[name];
+  // Theme-aware wake word (only if user hasn't customized it)
+  if (t && t.wakeWord) {
+    var currentWake = cfg.wakeWord || 'teletraan';
+    var themeDefaults = ['teletraan','nemesis','edi','imperial'];
+    var isDefault = themeDefaults.indexOf(currentWake) >= 0;
+    if (isDefault) {
+      cfg.wakeWord = t.wakeWord;
+      var wakeEl = document.getElementById('cfg-wake-word');
+      if (wakeEl) wakeEl.value = t.wakeWord;
+    }
+  }
+  saveConfig();
+  // Update CONFIG dropdown to match
+  var sel = document.getElementById('cfg-theme');
+  if (sel) sel.value = name;
+  reinitCanvas();
+  // Close menu
+  var menu = document.getElementById('theme-switcher-menu');
+  if (menu) menu.classList.add('hidden');
+  addMessage('system', 'Theme: ' + (t ? t.name : name));
+  haptic(20);
+}
+// Close theme switcher when clicking outside
+document.addEventListener('click', function(e) {
+  var sw = document.getElementById('theme-switcher');
+  var menu = document.getElementById('theme-switcher-menu');
+  if (sw && menu && !sw.contains(e.target)) menu.classList.add('hidden');
+});
+
 // ═══════════════════════════════════════════════
 // TELETRAAN-1 — Agora Desktop Web Bridge
 // Tomogichi <-> LLM communication hub
@@ -1751,6 +1789,15 @@ function logError(msg) {
   try { addMessage('error', msg); } catch(e) { console.error('logError failed:', e, 'original:', msg); }
   // #9 Sound: error descending blip
   SOUND.error();
+  // Haptic: double-buzz pattern for errors
+  haptic([30, 50, 30]);
+}
+
+// Haptic feedback — uses Vibration API on mobile (harmless on desktop, no-op if unsupported)
+function haptic(pattern) {
+  try {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  } catch(e) {}
 }
 
 // ═══════════════════════════════════════════════
@@ -3244,8 +3291,10 @@ function onSendClick() {
     document.getElementById('status-text').textContent = 'ONLINE';
     document.getElementById('dot-status').className = 'dot green';
     addMessage('system','Generation stopped.');
+    haptic(20);
     return;
   }
+  haptic(15);
   sendMessage();
 }
 
