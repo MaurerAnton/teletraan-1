@@ -76,18 +76,10 @@
   </div>
   <div id="main">
     <div id="terminal"></div>
-    <!-- AllSpark loading state — shown when generating, replaces PROCESSING... text -->
-    <div id="allspark-loader" class="allspark-loader hidden">
-      <div class="allspark-prism">
-        <div class="allspark-face f1"></div>
-        <div class="allspark-face f2"></div>
-        <div class="allspark-face f3"></div>
-        <div class="allspark-face f4"></div>
-        <div class="allspark-face f5"></div>
-        <div class="allspark-face f6"></div>
-      </div>
-      <div class="allspark-label">RECEIVING TRANSMISSION</div>
-    </div>
+    <!-- AllSpark loading state — shown when generating. Inner markup injected by showAllSpark()
+         based on theme.loaderType: hexPrism (Teletraan/Ark), decepticon (Nemesis),
+         orbit (Normandy), reticle (Imperial) -->
+    <div id="allspark-loader" class="allspark-loader hidden"></div>
     <div id="input-bar">
       <button id="btn-mic" onclick="toggleMic()" title="Voice input">🎤</button>
       <textarea id="msg-input" rows="1" placeholder="Enter command..."></textarea>

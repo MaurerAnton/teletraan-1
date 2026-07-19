@@ -244,6 +244,8 @@ function onThemeChange() {
   }
   saveConfig();
   addMessage('system', 'Theme: ' + (t ? t.name : cfg.theme) + ' — system prompt updated.');
+  // Re-init background canvas for new bgType (hex/triangle/tightHex/vector)
+  reinitCanvas();
 }
 
 // ═══════════════════════════════════════════════
@@ -842,36 +844,46 @@ function populateConfigFields() {
 }
 
 // ═══════════════════════════════════════════════
-// CANVAS HEX GRID + #7 HEX DATA RAIN
+// CANVAS BACKGROUND — per-theme patterns
+// hex (Teletraan/Ark) | triangle (Nemesis) | tightHex (Normandy) | vector (Imperial)
+// + #7 HEX DATA RAIN (Teletraan/Ark/Nemesis only; Imperial = vector reticles;
+//   Normandy = no rain, cleaner aesthetic)
 // ═══════════════════════════════════════════════
+var canvasAnimationFrame = null;
 function initCanvas() {
+  // Cancel any existing animation loop (for theme switches)
+  if (canvasAnimationFrame) cancelAnimationFrame(canvasAnimationFrame);
+  var theme = THEMES[cfg.theme] || THEMES['teletraan'];
+  var bgType = theme.bgType || 'hex';
   const c = document.getElementById('bgcanvas'), ctx = c.getContext('2d');
   var W, H;
   function resize() { W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
   resize(); window.addEventListener('resize', resize);
-  const hexR = 30, hexH = hexR * Math.sqrt(3);
-  const cols = Math.ceil(W / (hexR * 1.5)) + 2, rows = Math.ceil(H / hexH) + 2;
+
+  // Common state
   var pulses = [], pulseTimer = 0, pulseInterval = 2000 + Math.random() * 3000;
   var globalAlpha = 0.12, alphaDir = 1;
-  // #7 Hex data rain — packets travel along hex grid lines
   var dataPackets = [];
+
+  // Pattern parameters per bgType
+  var hexR, hexH, cols, rows;
+  if (bgType === 'tightHex') { hexR = 20; }       // Normandy: smaller hexes
+  else if (bgType === 'vector') { hexR = 40; }    // Imperial: larger grid cells
+  else { hexR = 30; }                              // Teletraan/Ark/Nemesis: default
+  hexH = hexR * Math.sqrt(3);
+  cols = Math.ceil(W / (hexR * 1.5)) + 2;
+  rows = Math.ceil(H / hexH) + 2;
+
   function spawnPulse() { pulses.push({x:Math.random()*cols, y:Math.random()*rows, life:0, maxLife:40+Math.random()*60}); }
   function spawnPacket() {
-    // Pick a random hex, random edge direction — packet travels along hex line edges
     var startCol = Math.floor(Math.random() * cols);
     var startRow = Math.floor(Math.random() * rows);
-    var dirs = [
-      {dc:1, dr:0}, {dc:-1, dr:0},     // E/W along hex top/bottom
-      {dc:1, dr:-1}, {dc:-1, dr:-1},   // NW/NE up
-      {dc:1, dr:1}, {dc:-1, dr:1},     // SE/SW down
-    ];
+    var dirs = [{dc:1,dr:0},{dc:-1,dr:0},{dc:1,dr:-1},{dc:-1,dr:-1},{dc:1,dr:1},{dc:-1,dr:1}];
     var d = dirs[Math.floor(Math.random() * dirs.length)];
     dataPackets.push({
-      col: startCol, row: startRow,
-      dc: d.dc, dr: d.dr,
+      col: startCol, row: startRow, dc: d.dc, dr: d.dr,
       steps: 6 + Math.floor(Math.random() * 8),
-      step: 0,
-      progress: 0,  // 0..1 between current hex and next
+      step: 0, progress: 0,
       speed: 0.04 + Math.random() * 0.04,
       trail: [],
     });
@@ -881,77 +893,143 @@ function initCanvas() {
     for (let i = 0; i < 6; i++) { const a = Math.PI/3*i - Math.PI/6, x = cx + r*Math.cos(a), y = cy + r*Math.sin(a); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); }
     ctx.closePath(); ctx.stroke();
   }
+  function drawTriangle(ctx, cx, cy, r, flip) {
+    ctx.beginPath();
+    var offset = flip ? Math.PI : 0;
+    for (let i = 0; i < 3; i++) { const a = 2*Math.PI/3*i + offset - Math.PI/2, x = cx + r*Math.cos(a), y = cy + r*Math.sin(a); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); }
+    ctx.closePath(); ctx.stroke();
+  }
   function hexCenter(col, row) {
     return {x: col*hexR*1.5, y: row*hexH + (col%2===0?0:hexH/2)};
   }
+
   function draw() {
     ctx.clearRect(0,0,W,H);
-    ctx.strokeStyle = '#1a1a4a'; ctx.lineWidth = 0.5;
-    for (let row = -1; row < rows; row++) for (let col = -1; col < cols; col++) {
-      const cx = col*hexR*1.5, cy = row*hexH + (col%2===0?0:hexH/2);
-      ctx.globalAlpha = globalAlpha; drawHex(ctx,cx,cy,hexR);
+
+    // ── Background pattern ──
+    if (bgType === 'vector') {
+      // Imperial: pure gridlines (vertical + horizontal), no hex
+      ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 0.5;
+      ctx.globalAlpha = globalAlpha;
+      var gridStep = 40;
+      for (var x = 0; x < W; x += gridStep) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (var y = 0; y < H; y += gridStep) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+    } else if (bgType === 'triangle') {
+      // Nemesis: triangular tessellation (sharper, more aggressive)
+      ctx.strokeStyle = '#3a1a4e'; ctx.lineWidth = 0.5;
+      var tStep = hexR;
+      for (let row = -1; row < rows; row++) {
+        for (let col = -1; col < cols; col++) {
+          const cx = col*tStep*1.5, cy = row*tStep*1.5;
+          ctx.globalAlpha = globalAlpha;
+          drawTriangle(ctx, cx, cy, tStep, false);
+          drawTriangle(ctx, cx + tStep*0.75, cy + tStep*0.5, tStep, true);
+        }
+      }
+    } else {
+      // hex / tightHex: hexagonal grid (Teletraan/Ark/Normandy)
+      ctx.strokeStyle = bgType === 'tightHex' ? '#1a3a5a' : '#1a1a4a';
+      ctx.lineWidth = 0.5;
+      for (let row = -1; row < rows; row++) for (let col = -1; col < cols; col++) {
+        const cx = col*hexR*1.5, cy = row*hexH + (col%2===0?0:hexH/2);
+        ctx.globalAlpha = globalAlpha; drawHex(ctx,cx,cy,hexR);
+      }
     }
-    ctx.strokeStyle = '#4dc9f6'; ctx.lineWidth = 1.2;
+
+    // ── Pulses (random highlighted cells) ──
+    var pulseColor = (bgType === 'vector') ? '#ff2020' :
+                     (bgType === 'triangle') ? '#e23e8e' :
+                     (bgType === 'tightHex') ? '#4a9eff' : '#4dc9f6';
+    ctx.strokeStyle = pulseColor; ctx.lineWidth = 1.2;
     for (let i = pulses.length-1; i >= 0; i--) {
-      const p = pulses[i], cx = p.x*hexR*1.5, cy = p.y*hexH + (Math.floor(p.x)%2===0?0:hexH/2);
+      const p = pulses[i];
+      var cx, cy;
+      if (bgType === 'vector') {
+        cx = p.x * 40; cy = p.y * 40;
+      } else if (bgType === 'triangle') {
+        cx = p.x * hexR * 1.5; cy = p.y * hexR * 1.5;
+      } else {
+        cx = p.x*hexR*1.5; cy = p.y*hexH + (Math.floor(p.x)%2===0?0:hexH/2);
+      }
       const progress = p.life / p.maxLife;
       ctx.globalAlpha = progress<.5 ? progress*2*.4 : (1-progress)*2*.4;
-      drawHex(ctx,cx,cy,hexR); p.life++;
+      if (bgType === 'vector') {
+        // Imperial: draw targeting reticle (circle + crosshair)
+        ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI*2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx-25, cy); ctx.lineTo(cx+25, cy);
+        ctx.moveTo(cx, cy-25); ctx.lineTo(cx, cy+25); ctx.stroke();
+      } else if (bgType === 'triangle') {
+        drawTriangle(ctx, cx, cy, hexR, false);
+      } else {
+        drawHex(ctx,cx,cy,hexR);
+      }
+      p.life++;
       if (p.life >= p.maxLife) pulses.splice(i,1);
     }
-    // #7 Hex data rain — draw packets + trails
-    ctx.strokeStyle = '#2ecc71'; ctx.lineWidth = 1.8;
-    for (let i = dataPackets.length-1; i >= 0; i--) {
-      var pkt = dataPackets[i];
-      var from = hexCenter(pkt.col, pkt.row);
-      var toCol = pkt.col + pkt.dc, toRow = pkt.row + pkt.dr;
-      var to = hexCenter(toCol, toRow);
-      // Current position (lerp)
-      var px = from.x + (to.x - from.x) * pkt.progress;
-      var py = from.y + (to.y - from.y) * pkt.progress;
-      // Push to trail
-      pkt.trail.push({x: px, y: py});
-      if (pkt.trail.length > 8) pkt.trail.shift();
-      // Draw trail (fading)
-      for (var t = 0; t < pkt.trail.length - 1; t++) {
-        var ta = t / pkt.trail.length;
-        ctx.globalAlpha = ta * 0.8;
-        ctx.beginPath();
-        ctx.moveTo(pkt.trail[t].x, pkt.trail[t].y);
-        ctx.lineTo(pkt.trail[t+1].x, pkt.trail[t+1].y);
-        ctx.stroke();
-      }
-      // Bright head
-      ctx.globalAlpha = 1.0;
-      ctx.fillStyle = '#2ecc71';
-      ctx.beginPath();
-      ctx.arc(px, py, 2, 0, Math.PI * 2);
-      ctx.fill();
-      // Advance
-      pkt.progress += pkt.speed;
-      if (pkt.progress >= 1) {
-        pkt.col = toCol; pkt.row = toRow;
-        pkt.progress = 0;
-        pkt.step++;
-        // Occasionally turn at a junction
-        if (Math.random() < 0.3) {
-          var dirs = [{dc:1,dr:0},{dc:-1,dr:0},{dc:1,dr:-1},{dc:-1,dr:-1},{dc:1,dr:1},{dc:-1,dr:1}];
-          var nd = dirs[Math.floor(Math.random() * dirs.length)];
-          pkt.dc = nd.dc; pkt.dr = nd.dr;
+
+    // ── Data rain packets (only for hex-based themes when enabled) ──
+    var rainAllowed = (bgType === 'hex' || bgType === 'tightHex' || bgType === 'triangle');
+    if (rainAllowed && cfg.hexRainEnabled) {
+      var rainColor = (bgType === 'triangle') ? '#ff2020' :
+                      (bgType === 'tightHex') ? '#00ff80' : '#2ecc71';
+      ctx.strokeStyle = rainColor; ctx.lineWidth = 1.8;
+      ctx.fillStyle = rainColor;
+      for (let i = dataPackets.length-1; i >= 0; i--) {
+        var pkt = dataPackets[i];
+        var from = hexCenter(pkt.col, pkt.row);
+        var toCol = pkt.col + pkt.dc, toRow = pkt.row + pkt.dr;
+        var to = hexCenter(toCol, toRow);
+        var px = from.x + (to.x - from.x) * pkt.progress;
+        var py = from.y + (to.y - from.y) * pkt.progress;
+        pkt.trail.push({x: px, y: py});
+        if (pkt.trail.length > 8) pkt.trail.shift();
+        for (var t = 0; t < pkt.trail.length - 1; t++) {
+          var ta = t / pkt.trail.length;
+          ctx.globalAlpha = ta * 0.8;
+          ctx.beginPath();
+          ctx.moveTo(pkt.trail[t].x, pkt.trail[t].y);
+          ctx.lineTo(pkt.trail[t+1].x, pkt.trail[t+1].y);
+          ctx.stroke();
         }
-        if (pkt.step >= pkt.steps) dataPackets.splice(i, 1);
+        ctx.globalAlpha = 1.0;
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI * 2);
+        ctx.fill();
+        pkt.progress += pkt.speed;
+        if (pkt.progress >= 1) {
+          pkt.col = toCol; pkt.row = toRow;
+          pkt.progress = 0;
+          pkt.step++;
+          if (Math.random() < 0.3) {
+            var dirs = [{dc:1,dr:0},{dc:-1,dr:0},{dc:1,dr:-1},{dc:-1,dr:-1},{dc:1,dr:1},{dc:-1,dr:1}];
+            var nd = dirs[Math.floor(Math.random() * dirs.length)];
+            pkt.dc = nd.dc; pkt.dr = nd.dr;
+          }
+          if (pkt.step >= pkt.steps) dataPackets.splice(i, 1);
+        }
       }
+      if (Math.random() < 0.04 && dataPackets.length < 12) spawnPacket();
     }
-    // Spawn new packet occasionally — only if hex rain is enabled in config
-    if (cfg.hexRainEnabled && Math.random() < 0.04 && dataPackets.length < 12) spawnPacket();
-    // If hex rain was just toggled off, let existing packets finish their journeys
-    // (they'll naturally expire after 6-14 steps). No forced clear — looks smoother.
-    globalAlpha += .0001*alphaDir; if (globalAlpha>.18) alphaDir=-1; if (globalAlpha<.08) alphaDir=1;
+
+    globalAlpha += .0001*alphaDir;
+    if (globalAlpha>.18) alphaDir=-1;
+    if (globalAlpha<.08) alphaDir=1;
     pulseTimer += 16;
-    if (pulseTimer >= pulseInterval) { pulseTimer=0; pulseInterval=2000+Math.random()*3000; spawnPulse(); }
-    requestAnimationFrame(draw);
+    if (pulseTimer >= pulseInterval) {
+      pulseTimer=0; pulseInterval=2000+Math.random()*3000; spawnPulse();
+    }
+    canvasAnimationFrame = requestAnimationFrame(draw);
   }
   draw();
+}
+
+// Re-init canvas when theme changes (called from onThemeChange)
+function reinitCanvas() {
+  initCanvas();
 }
 
 // ═══════════════════════════════════════════════
@@ -1384,18 +1462,54 @@ async function sendMessageInternal(text) {
   }
 }
 
-// #14 AllSpark loader toggle — label text uses theme's loaderLabel
+// #14 AllSpark loader toggle — inner markup injected per theme.loaderType
+// hexPrism: 6-face CSS cube (Teletraan/Ark)
+// decepticon: spinning ⚡ glyph (Nemesis)
+// orbit: 3 dots orbiting center (Normandy)
+// reticle: targeting reticle, rotation + scale pulse (Imperial)
 function showAllSpark(show) {
   var el = document.getElementById('allspark-loader');
   if (!el) return;
   if (show) {
-    // Update label text to match theme
     var t = THEMES[cfg.theme] || THEMES['teletraan'];
-    var labelEl = el.querySelector('.allspark-label');
-    if (labelEl && t.loaderLabel) labelEl.textContent = t.loaderLabel;
+    el.innerHTML = loaderMarkup(t.loaderType) +
+      '<div class="allspark-label">' + (t.loaderLabel || 'PROCESSING') + '</div>';
     el.classList.remove('hidden'); el.classList.add('visible');
   } else {
     el.classList.add('hidden'); el.classList.remove('visible');
+  }
+}
+
+function loaderMarkup(type) {
+  switch (type) {
+    case 'hexPrism':
+      return '<div class="allspark-prism">' +
+        '<div class="allspark-face f1"></div>' +
+        '<div class="allspark-face f2"></div>' +
+        '<div class="allspark-face f3"></div>' +
+        '<div class="allspark-face f4"></div>' +
+        '<div class="allspark-face f5"></div>' +
+        '<div class="allspark-face f6"></div>' +
+      '</div>';
+    case 'decepticon':
+      return '<div class="loader-decepticon">⚡</div>';
+    case 'orbit':
+      return '<div class="loader-orbit">' +
+        '<div class="dot"></div>' +
+        '<div class="dot"></div>' +
+        '<div class="dot"></div>' +
+      '</div>';
+    case 'reticle':
+      return '<div class="loader-reticle"></div>';
+    default:
+      return '<div class="allspark-prism">' +
+        '<div class="allspark-face f1"></div>' +
+        '<div class="allspark-face f2"></div>' +
+        '<div class="allspark-face f3"></div>' +
+        '<div class="allspark-face f4"></div>' +
+        '<div class="allspark-face f5"></div>' +
+        '<div class="allspark-face f6"></div>' +
+      '</div>';
   }
 }
 
