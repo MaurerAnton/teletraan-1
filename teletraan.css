@@ -3,12 +3,12 @@
    ═══════════════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  /* Defaults match ARK theme (Teletraan-1 amber/gold on dark grey).
+  /* Defaults match TELETRAAN theme (blue/green futuristic Cybertronian).
      Other themes override these via body.theme-X classes. */
-  --bg-dark:#1a1a1a;--bg-mid:#242424;--blue:#ffb000;--green:#2ecc71;
-  --red:#e23e57;--purple:#9b59b6;--grey:#8a8a8a;--border:#3a3a3a;
-  --amber:#ff8c00;
-  --txt:#ffb000;
+  --bg-dark:#0a0a1a;--bg-mid:#0d0d24;--blue:#4dc9f6;--green:#2ecc71;
+  --red:#e23e57;--purple:#9b59b6;--grey:#95a5a6;--border:#1a1a3a;
+  --amber:#f39c12;
+  --txt:#4dc9f6;
 }
 html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding:0;
   font-family:'Courier New','Lucida Console','Liberation Mono','DejaVu Sans Mono',monospace;
@@ -349,6 +349,9 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
    All --blue / --green / --bg-dark etc. cascade
    through every element that uses var(--X).
    ═══════════════════════════════════════════════ */
+
+/* TELETRAAN (default — blue/green futuristic Cybertronian, original) */
+body.theme-teletraan{}  /* uses :root defaults */
 
 /* ARK (Teletraan-1 — amber/gold on dark grey, matching the cartoon's
    Teletraan-1 screens: yellow text on dark, grey metallic panels) */

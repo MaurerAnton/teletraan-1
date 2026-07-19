@@ -227,7 +227,7 @@ const DEFAULTS = {
   ttsTimeout:60, alwaysShowTimestamps:false,
   soundEnabled:true, soundTypewriter:false,
   hexRainEnabled:false,  // default off — green packets look like spermatosoids
-  theme:'ark',
+  theme:'teletraan',  // default = original blue/green Cybertronian
   sttProvider:'web-speech', sttEndpoint:'',
   ttsProvider:'web-speech', ttsEndpoint:'', ttsVoice:'default',
   systemPrompt:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
@@ -242,8 +242,8 @@ const DEFAULTS = {
 // Same code, four flavors.
 // ═══════════════════════════════════════════════
 const THEMES = {
-  'ark': {
-    name: 'ARK · Teletraan-1 (Autobot)',
+  'teletraan': {
+    name: 'TELETRAAN (blue/green Cybertronian)',
     glyph: '▲',
     bootGlyph: '▲ TELETRAAN-1 ▲',
     title: 'TELETRAAN-1',
@@ -258,8 +258,27 @@ const THEMES = {
       'SYSTEMS NOMINAL',
     ],
     bootSound: 'boot',
-    cssClass: 'theme-ark',
+    cssClass: 'theme-teletraan',
     systemPrompt: 'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+  },
+  'ark': {
+    name: 'ARK (amber/gold + grey, cartoon-accurate)',
+    glyph: '▲',
+    bootGlyph: '▲ TELETRAAN-1 ▲',
+    title: 'TELETRAAN-1',
+    subtitle: 'AUTOBOT ARK // TELETRAAN-1 ONLINE',
+    pageTitle: 'Teletraan-1 · Autobot Ark',
+    bootSubtitle: 'AUTOBOT ARK COMMAND INTERFACE',
+    bootLines: [
+      'INITIALIZING TELETRAAN-1...',
+      'ARK SYSTEMS POWERING UP...',
+      'CREW STATUS: STASIS ENDED...',
+      'COMMS ARRAY ALIGNED...',
+      'ARK SYSTEMS NOMINAL',
+    ],
+    bootSound: 'boot',
+    cssClass: 'theme-ark',
+    systemPrompt: 'You are Teletraan-1, the Autobot Ark\'s main computer. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth, like a veteran ship computer. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
   },
   'nemesis': {
     name: 'NEMESIS · Decepticon',
