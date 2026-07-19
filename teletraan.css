@@ -169,6 +169,12 @@ html,body{height:100vh;height:100dvh;width:100%;overflow:hidden;margin:0;padding
 .conv-item.active{background:rgba(77,201,246,.12);border-color:var(--blue)}
 .conv-item-title{font-size:.72em;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .conv-item-title.editing{outline:1px solid var(--blue);background:var(--bg-dark)}
+
+/* Active prompt block in sidebar */
+.active-prompt-block{border:1px solid var(--border);padding:6px 8px;border-radius:4px;margin-top:6px}
+.active-prompt-label{font-size:.55em;color:var(--grey);letter-spacing:2px;text-transform:uppercase}
+.active-prompt-name{color:var(--blue);text-shadow:0 0 4px var(--blue);font-size:.72em;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .conv-item-time{font-size:.55em;color:var(--grey);margin-top:2px;opacity:.6}
 .conv-item-actions{display:flex;gap:4px;margin-top:3px}
 .conv-item-actions button{background:transparent;border:none;color:var(--grey);font-size:.55em;cursor:pointer;padding:1px 4px;border-radius:2px}

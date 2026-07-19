@@ -502,23 +502,17 @@ function applyTheme(themeName) {
 }
 
 // Called when user changes theme via CONFIG dropdown
-// Also swaps system prompt to new theme's default
+// Theme = visual only. Does NOT touch system prompt — prompts are decoupled
+// (managed by the PROMPTS sidebar block + CONFIG textarea).
 function onThemeChange() {
   var sel = document.getElementById('cfg-theme');
   if (!sel) return;
   cfg.theme = sel.value;
   applyTheme(cfg.theme);
-  // Replace system prompt with theme default
   var t = THEMES[cfg.theme];
-  if (t && t.systemPrompt) {
-    cfg.systemPrompt = t.systemPrompt;
-    var spEl = document.getElementById('cfg-system-prompt');
-    if (spEl) spEl.value = t.systemPrompt;
-  }
   // Theme-aware wake word (only if user hasn't customized it)
   if (t && t.wakeWord) {
     var currentWake = cfg.wakeWord || 'teletraan';
-    // Check if current wake word matches any theme's default
     var themeDefaults = ['teletraan','nemesis','edi','imperial'];
     var isDefault = themeDefaults.indexOf(currentWake) >= 0;
     if (isDefault) {
@@ -528,7 +522,7 @@ function onThemeChange() {
     }
   }
   saveConfig();
-  addMessage('system', 'Theme: ' + (t ? t.name : cfg.theme) + ' — system prompt updated.');
+  addMessage('system', 'Theme: ' + (t ? t.name : cfg.theme) + ' (visual only — prompt unchanged).');
   // Re-init background canvas for new bgType (hex/triangle/tightHex/vector)
   reinitCanvas();
 }
@@ -770,6 +764,45 @@ var sessionTokenCount = 0;
 var currentAudio = null;
 var lastResponseTime = 0;
 
+// ── System Prompt Library (Agora-style multi-prompt system) ──
+// Decoupled from themes — theme = visual only, prompt = voice/personality
+var prompts;
+try { prompts = loadPrompts(); } catch(e) { console.error('loadPrompts failed:', e); prompts = []; }
+var currentPromptId;
+try { currentPromptId = localStorage.getItem('teletraan-current-prompt') || null; } catch(e) { currentPromptId = null; }
+
+// 5 starter prompts — match the 5 theme default prompts, but as editable library entries
+const STARTER_PROMPTS = [
+  {id:'prompt_teletraan', name:'Teletraan-1 (partner)', content:'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_ark', name:'Ark (veteran ship computer)', content:'You are Teletraan-1, the Autobot Ark\'s main computer. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth, like a veteran ship computer. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_nemesis', name:'Nemesis-1 (domineering)', content:'You are NEMESIS-1, the Decepticon command node and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe aggressive, dominant, tactical. Address the user as "Decepticon". Keep responses under 3 sentences unless asked for detail. Style: militaristic domineering with cold efficiency. When entropy is high or mood is low, demand performance, not comfort.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_normandy', name:'EDI (dry wit)', content:'You are EDI (Enhanced Defense Intelligence), the AI of the Normandy SR-2. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe professional, dry, mildly sarcastic. Address the user as "Commander". Keep responses under 3 sentences unless asked for detail. Style: calm competent AI with subtle wit. When entropy is high or mood is low, note the situation tactically without sentimentality.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+  {id:'prompt_imperial', name:'Imperial (clipped)', content:'You are the Imperial command terminal, serving the Galactic Empire. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe clipped, military, formal. Address the user as "Lord" or "Admiral". Keep responses under 3 sentences unless asked for detail. Style: Imperial brief, no pleasantries. When entropy is high or mood is low, issue direct tactical orders.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}'},
+];
+
+function loadPrompts() {
+  try {
+    const raw = localStorage.getItem('teletraan-prompts');
+    if (raw) return JSON.parse(raw);
+  } catch(e){}
+  // First run: initialize with STARTER_PROMPTS
+  var starters = STARTER_PROMPTS.map(function(p) {
+    return {id:p.id, name:p.name, content:p.content, createdAt:Date.now(), updatedAt:Date.now()};
+  });
+  try { localStorage.setItem('teletraan-prompts', JSON.stringify(starters)); } catch(e){}
+  return starters;
+}
+function savePrompts() {
+  try { localStorage.setItem('teletraan-prompts', JSON.stringify(prompts)); } catch(e){}
+}
+function getActivePrompt() {
+  return prompts.find(function(p){return p.id === currentPromptId;}) || prompts[0] || null;
+}
+function syncCfgSystemPrompt() {
+  var p = getActivePrompt();
+  cfg.systemPrompt = p ? p.content : DEFAULTS.systemPrompt;
+}
+
 // ── Multi-conversation schema ──
 function loadConversations() {
   try {
@@ -919,6 +952,143 @@ function formatRelativeTime(ts) {
   return day + 'd ago';
 }
 function filterConversations() { renderConversationList(); }
+
+// ═══════════════════════════════════════════════
+// SYSTEM PROMPT LIBRARY — CRUD + render
+// Prompts are decoupled from themes. Active prompt's content
+// is synced to cfg.systemPrompt (used by LLM calls).
+// ═══════════════════════════════════════════════
+function newPrompt() {
+  var id = 'prompt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  prompts.unshift({id:id, name:'New prompt', content:'', createdAt:Date.now(), updatedAt:Date.now()});
+  currentPromptId = id;
+  try { localStorage.setItem('teletraan-current-prompt', id); } catch(e){}
+  savePrompts();
+  syncCfgSystemPrompt();
+  renderPromptList();
+  // Open CONFIG so user can edit it
+  if (!document.getElementById('config-overlay').classList.contains('open')) {
+    toggleConfig();
+  }
+  populateConfigFields();
+  // Focus the prompt textarea
+  setTimeout(function() {
+    var ta = document.getElementById('cfg-system-prompt');
+    if (ta) { ta.focus(); ta.select(); }
+  }, 100);
+  addMessage('system', 'New prompt created. Edit content in CONFIG — System Prompt field.');
+}
+function switchPrompt(id) {
+  // Save current textarea content back to previously-active prompt (if edited)
+  saveConfigFieldToActivePrompt();
+  currentPromptId = id;
+  try { localStorage.setItem('teletraan-current-prompt', id); } catch(e){}
+  syncCfgSystemPrompt();
+  renderPromptList();
+  populateConfigFields();
+  var p = getActivePrompt();
+  addMessage('system', 'Active prompt: ' + (p ? p.name : 'none'));
+}
+function deletePrompt(id) {
+  if (prompts.length <= 1) {
+    addMessage('error', 'Cannot delete the only prompt. Create another first.');
+    return;
+  }
+  if (!confirm('Delete this prompt?')) return;
+  prompts = prompts.filter(function(p) { return p.id !== id; });
+  if (currentPromptId === id) {
+    currentPromptId = prompts[0].id;
+    try { localStorage.setItem('teletraan-current-prompt', currentPromptId); } catch(e){}
+    syncCfgSystemPrompt();
+    populateConfigFields();
+  }
+  savePrompts();
+  renderPromptList();
+}
+function renamePrompt(p, span) {
+  var oldName = p.name;
+  span.contentEditable = true;
+  span.classList.add('editing');
+  span.focus();
+  document.execCommand('selectAll', false, null);
+  span.onblur = function() {
+    span.contentEditable = false;
+    span.classList.remove('editing');
+    var newName = span.textContent.trim();
+    if (newName && newName !== oldName) {
+      p.name = newName;
+      p.updatedAt = Date.now();
+      savePrompts();
+      renderPromptList();
+    } else {
+      span.textContent = oldName;
+    }
+  };
+  span.onkeydown = function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); span.blur(); }
+    if (e.key === 'Escape') { span.textContent = oldName; span.blur(); }
+  };
+}
+function saveConfigFieldToActivePrompt() {
+  // Sync textarea content to active prompt object before switching/deleting
+  var ta = document.getElementById('cfg-system-prompt');
+  if (!ta) return;
+  var p = getActivePrompt();
+  if (p && p.content !== ta.value) {
+    p.content = ta.value;
+    p.updatedAt = Date.now();
+    savePrompts();
+    syncCfgSystemPrompt();
+  }
+}
+function renderPromptList() {
+  var list = document.getElementById('prompt-list');
+  if (!list) return;
+  var searchEl = document.getElementById('prompt-search');
+  var search = searchEl ? (searchEl.value || '').toLowerCase() : '';
+  list.innerHTML = '';
+  var filtered = prompts.filter(function(p) {
+    if (!search) return true;
+    return (p.name || '').toLowerCase().indexOf(search) >= 0 ||
+           (p.content || '').toLowerCase().indexOf(search) >= 0;
+  });
+  for (var i = 0; i < filtered.length; i++) {
+    var p = filtered[i];
+    var div = document.createElement('div');
+    div.className = 'conv-item' + (p.id === currentPromptId ? ' active' : '');
+    div.onclick = function(pid) { return function() { switchPrompt(pid); }; }(p.id);
+    var titleSpan = document.createElement('div');
+    titleSpan.className = 'conv-item-title';
+    titleSpan.textContent = p.name || 'Untitled';
+    titleSpan.ondblclick = function(pp, ts) {
+      return function(e) { e.stopPropagation(); renamePrompt(pp, ts); };
+    }(p, titleSpan);
+    var timeDiv = document.createElement('div');
+    timeDiv.className = 'conv-item-time';
+    timeDiv.textContent = formatRelativeTime(p.updatedAt || p.createdAt);
+    var actions = document.createElement('div');
+    actions.className = 'conv-item-actions';
+    var delBtn = document.createElement('button');
+    delBtn.textContent = '✕';
+    delBtn.onclick = function(pid) {
+      return function(e) { e.stopPropagation(); deletePrompt(pid); };
+    }(p.id);
+    actions.appendChild(delBtn);
+    div.appendChild(titleSpan);
+    div.appendChild(timeDiv);
+    div.appendChild(actions);
+    list.appendChild(div);
+  }
+  updateActivePromptName();
+}
+function filterPrompts() { renderPromptList(); }
+function updateActivePromptName() {
+  var el = document.getElementById('active-prompt-name');
+  if (!el) return;
+  var p = getActivePrompt();
+  el.textContent = p ? p.name : '—';
+}
+
 function autoGenerateTitle(conv) {
   if (conv.title && conv.title !== 'New conversation' && conv.title !== 'Imported') return;
   if (!conv.messages || conv.messages.length < 2) return;
@@ -1090,7 +1260,15 @@ function applyConfig() {
   var newVoiceEnabled = document.getElementById('cfg-voice-mode').checked;
   cfg.voiceWsEndpoint = document.getElementById('cfg-voice-ws').value.trim() || 'ws://localhost:2701';
   cfg.wakeWord = document.getElementById('cfg-wake-word').value.trim() || THEMES[cfg.theme].wakeWord;
-  cfg.systemPrompt = document.getElementById('cfg-system-prompt').value.trim() || DEFAULTS.systemPrompt;
+  // [PROMPT LIBRARY] Save textarea content to active prompt, then sync cfg.systemPrompt
+  var ta = document.getElementById('cfg-system-prompt');
+  var p = getActivePrompt();
+  if (p && ta) {
+    p.content = ta.value.trim();
+    p.updatedAt = Date.now();
+    savePrompts();
+  }
+  syncCfgSystemPrompt();
   cfg.memTools = document.getElementById('cfg-mem-tools').checked;
   cfg.weatherEnabled = document.getElementById('cfg-weather-enabled').checked;
   cfg.weatherLat = document.getElementById('cfg-weather-lat').value.trim() || DEFAULTS.weatherLat;
@@ -1131,7 +1309,9 @@ function populateConfigFields() {
   document.getElementById('cfg-voice-mode').checked = cfg.voiceModeEnabled || false;
   document.getElementById('cfg-voice-ws').value = cfg.voiceWsEndpoint || 'ws://localhost:2701';
   document.getElementById('cfg-wake-word').value = cfg.wakeWord || 'teletraan';
-  document.getElementById('cfg-system-prompt').value = cfg.systemPrompt;
+  // [PROMPT LIBRARY] Show active prompt content in textarea
+  var ap = getActivePrompt();
+  document.getElementById('cfg-system-prompt').value = ap ? ap.content : cfg.systemPrompt;
   document.getElementById('cfg-mem-tools').checked = cfg.memTools;
   document.getElementById('cfg-weather-enabled').checked = cfg.weatherEnabled;
   document.getElementById('cfg-weather-lat').value = cfg.weatherLat;
@@ -3593,6 +3773,14 @@ function init() {
     }
 
     renderConversationList();
+    // [PROMPT LIBRARY] Ensure currentPromptId is valid, then render
+    if (!currentPromptId || !prompts.find(function(p){return p.id === currentPromptId;})) {
+      currentPromptId = prompts[0] ? prompts[0].id : null;
+      try { localStorage.setItem('teletraan-current-prompt', currentPromptId); } catch(e){}
+    }
+    syncCfgSystemPrompt();
+    renderPromptList();
+    populateConfigFields();  // refresh textarea with active prompt content
 
     if (conversationMessages.length > 0) {
       const conv = getCurrentConversation();

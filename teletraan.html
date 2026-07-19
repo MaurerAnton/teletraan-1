@@ -62,6 +62,15 @@
       </div>
     </div>
 
+    <div class="active-prompt-block">
+      <div class="active-prompt-label">ACTIVE PROMPT</div>
+      <div class="active-prompt-name" id="active-prompt-name">—</div>
+    </div>
+
+    <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-top:4px">PROMPTS</div>
+    <input type="text" class="search-box" id="prompt-search" placeholder="Search prompts..." oninput="filterPrompts()">
+    <div class="conv-list" id="prompt-list" style="max-height:120px"></div>
+
     <div style="font-size:.65em;color:var(--grey);letter-spacing:2px;margin-top:4px">CONVERSATIONS</div>
     <input type="text" class="search-box" id="conv-search" placeholder="Search conversations..." oninput="filterConversations()">
     <div class="conv-list" id="conv-list"></div>
@@ -69,6 +78,7 @@
     <div class="sidebar-buttons">
       <button class="btn-side" onclick="toggleFullscreen()" title="Toggle fullscreen (hides KDE panel)" id="btn-fs">⛶ FS</button>
       <button class="btn-side" onclick="newConversation()" title="Start new conversation">+ NEW</button>
+      <button class="btn-side" onclick="newPrompt()" title="Create new system prompt">+ PROMPT</button>
       <button class="btn-side" onclick="runMorningBrief()" title="Generate morning brief (Ctrl+B)">BRIEF</button>
       <button class="btn-side danger" onclick="clearTerminal()" title="Clear terminal (Ctrl+L)">CLEAR</button>
       <button class="btn-side" onclick="toggleConfig()" title="Settings (Ctrl+,)">CONFIG</button>
