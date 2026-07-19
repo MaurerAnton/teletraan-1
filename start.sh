@@ -81,19 +81,60 @@ if [ "$START_TTS" = true ]; then
       echo -e "${GREEN}[piper]  Already running on http://localhost:5000${NC}"
     else
       echo -e "${BLUE}[piper]  Starting Piper TTS server...${NC}"
-      "$PIPER_VENV/bin/python3" -m piper.http_server -m en_US-lessac-medium >/tmp/piper.log 2>&1 &
-      PIDS+=($!)
-      # Wait for Piper to be ready
-      for i in {1..15}; do
-        if curl -s --max-time 1 http://localhost:5000/info >/dev/null 2>&1; then
-          echo -e "${GREEN}[piper]  Ready on http://localhost:5000${NC}"
-          break
+
+      # Find the voice model (.onnx file) — Piper's -m flag needs either:
+      # 1. Voice name (searches in --data-dir, default ~/.local/share/piper)
+      # 2. Full path to .onnx file (more reliable)
+      PIPER_VOICE=""
+      for search_dir in \
+        "$HOME/.local/share/piper/voices" \
+        "$HOME/.local/share/piper" \
+        "$HOME/piper-venv/voices" \
+        "$HOME/vosk-models"; do
+        if [ -d "$search_dir" ]; then
+          # Look for the .onnx file (Piper voice)
+          ONNX_FILE=$(find "$search_dir" -name "en_US-lessac-medium*.onnx" -not -name "*.onnx.json" 2>/dev/null | head -1)
+          if [ -n "$ONNX_FILE" ]; then
+            PIPER_VOICE="$ONNX_FILE"
+            break
+          fi
         fi
-        sleep 1
       done
-      if ! curl -s --max-time 1 http://localhost:5000/info >/dev/null 2>&1; then
-        echo -e "${RED}[piper]  Failed to start (check /tmp/piper.log)${NC}"
+
+      if [ -z "$PIPER_VOICE" ]; then
+        echo -e "${YELLOW}[piper]  Voice model not found. Downloading en_US-lessac-medium...${NC}"
+        "$PIPER_VENV/bin/python3" -m piper.download_voices en_US-lessac-medium 2>/tmp/piper-download.log
+        # Try again after download
+        for search_dir in "$HOME/.local/share/piper/voices" "$HOME/.local/share/piper"; do
+          ONNX_FILE=$(find "$search_dir" -name "en_US-lessac-medium*.onnx" -not -name "*.onnx.json" 2>/dev/null | head -1)
+          if [ -n "$ONNX_FILE" ]; then
+            PIPER_VOICE="$ONNX_FILE"
+            break
+          fi
+        done
+      fi
+
+      if [ -z "$PIPER_VOICE" ]; then
+        echo -e "${RED}[piper]  Voice model not found anywhere.${NC}"
+        echo -e "${YELLOW}        Try: $PIPER_VENV/bin/python3 -m piper.download_voices en_US-lessac-medium${NC}"
+        echo -e "${YELLOW}        Then check: find ~ -name '*.onnx' -path '*piper*'${NC}"
         START_TTS=false
+      else
+        echo -e "${BLUE}[piper]  Using voice: $PIPER_VOICE${NC}"
+        "$PIPER_VENV/bin/python3" -m piper.http_server -m "$PIPER_VOICE" >/tmp/piper.log 2>&1 &
+        PIDS+=($!)
+        # Wait for Piper to be ready
+        for i in {1..15}; do
+          if curl -s --max-time 1 http://localhost:5000/info >/dev/null 2>&1; then
+            echo -e "${GREEN}[piper]  Ready on http://localhost:5000${NC}"
+            break
+          fi
+          sleep 1
+        done
+        if ! curl -s --max-time 1 http://localhost:5000/info >/dev/null 2>&1; then
+          echo -e "${RED}[piper]  Failed to start (check /tmp/piper.log)${NC}"
+          START_TTS=false
+        fi
       fi
     fi
   else
