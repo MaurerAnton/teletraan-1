@@ -5,6 +5,36 @@
    ═══════════════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
+/* Touch-friendly defaults for PinePhone — prevent text selection on taps,
+   larger tap targets, disable double-tap zoom on buttons */
+html{
+  -webkit-text-size-adjust:100%;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;
+  touch-action:manipulation;
+}
+button,.tab,.char-card,.todo-item,.mood-chip,.conv-item,.hm-cell,.effect-btn{
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;
+  user-select:none;
+  touch-action:manipulation;
+}
+/* Larger tap targets on touch devices */
+@media(hover:none) and (pointer:coarse){
+  .tab{padding:10px 4px}
+  .tab-icon{font-size:1.4em}
+  .btn-action{padding:14px;min-height:44px}
+  .shop-buy,.btn-add{min-height:40px;padding:10px}
+  .quick-start{width:44px;height:44px}
+  .char-card{padding:14px;min-height:60px}
+  .todo-check{width:24px;height:24px}
+  .mood-chip{padding:8px 10px}
+  .sub-tab{padding:8px 12px}
+  .effect-btn{padding:14px}
+  .btn-side{padding:8px 10px}
+  .back-btn{padding:8px 14px}
+}
+
 /* ── CSS Variables (defaults = dark sci-fi + pet mode) ── */
 :root{
   /* Real Tomogichi palette */
@@ -61,7 +91,9 @@ html,body{height:100vh;height:100dvh;overflow:hidden;margin:0;padding:0;
     repeating-linear-gradient(90deg,transparent 0,transparent 40px,var(--border) 40px,var(--border) 41px)}
 
 /* App layout */
-.app{position:relative;z-index:1;display:flex;flex-direction:column;height:100vh;height:100dvh}
+.app{position:relative;z-index:1;display:flex;flex-direction:column;height:100vh;height:100dvh;
+  padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
+  padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 .page-stack{flex:1;overflow-y:auto;position:relative}
 .page-stack::-webkit-scrollbar{width:4px}
 .page-stack::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
@@ -152,7 +184,7 @@ html,body{height:100vh;height:100dvh;overflow:hidden;margin:0;padding:0;
 
 .btn-add{background:none;border:1px dashed var(--border);color:var(--txt-dim);
   padding:8px;width:100%;border-radius:var(--radius-sm);cursor:pointer;font-size:.75em;margin:6px 0}
-.btn-add:hover{border-color:var(--blue);color:var(--blue}
+.btn-add:hover{border-color:var(--blue);color:var(--blue)}
 
 .recommendation{padding:8px;border-radius:var(--radius-sm);background:var(--bg-card);font-size:.75em;margin-top:10px;color:var(--txt-dim)}
 

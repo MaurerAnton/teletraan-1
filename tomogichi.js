@@ -726,7 +726,13 @@ async function applyCommand(cmd) {
 // ═══════════════════════════════════════════════
 
 function startTimer(personId, skillName, plannedMin) {
-  if (timerInterval) { stopTimer(); }  // auto-stop previous
+  // If a timer is already running, just cancel it silently (don't show effect picker —
+  // we're switching to a new practice, not ending the old one). The old practice is lost.
+  // This matches the Qt app's auto-stop-previous behavior.
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
   timerStartTime = Date.now();
   timerPlannedMin = plannedMin || 30;
   timerPersonId = personId;
@@ -771,15 +777,18 @@ function stopTimer() {
   timerInterval = null;
   var elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
   var minutes = Math.max(1, Math.round(elapsed / 60));
+  // Hide timer chip
+  document.getElementById('timer-chip').classList.add('hidden');
+  // Pop timer page first (so when effect overlay closes, we're back on Guild)
+  if (pageStack.length > 0) popPage();
   // Show effect picker
   var p = CHAR_DEFS[timerPersonId];
   var personName = p ? p.name : timerPersonId;
   document.getElementById('effect-title').textContent = personName + ' practiced ' + timerSkillName + ' for ' + minutes + 'm. How do you feel?';
+  document.getElementById('effect-notes').value = '';
   document.getElementById('effect-overlay').classList.remove('hidden');
   // Store pending practice info
   window._pendingPractice = {personId: timerPersonId, skillName: timerSkillName, minutes: minutes};
-  document.getElementById('timer-chip').classList.add('hidden');
-  popPage();
 }
 
 function cancelTimer() {
