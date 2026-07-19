@@ -3,1146 +3,255 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Tomogichi · Cybertronian Squad</title>
-<style>
-/* ═══════════════════════════════════════════════
-   TOMOGICHI WEB — Cybertronian Squad Manager
-   4 characters, 4 distinct visual designs
-   ═══════════════════════════════════════════════ */
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-
-/* ── Character theme variables ── */
-/* Each character has their own palette + visual identity */
-body{
-  --primary:#ffb347; --accent:#ff7700; --bg:#1a1408; --bg-mid:#241a0c;
-  --card-bg:rgba(255,179,71,.06); --border:rgba(255,179,71,.25);
-  --txt:#ffb347; --grey:#8a7a5a; --green:#5eff8a; --red:#e23e57;
-  font-family:'Courier New','Liberation Mono',monospace;
-  background:var(--bg); color:var(--txt);
-  height:100vh; height:100dvh; overflow:hidden;
-  transition:background .4s,color .4s;
-}
-
-/* ── RIFF: Scout/Speed — Amber/Gold, Hexagons, Lightning ── */
-body.char-riff{
-  --primary:#ffb347;--accent:#ff7700;--bg:#1a1408;--bg-mid:#241a0c;
-  --card-bg:rgba(255,179,71,.06);--border:rgba(255,179,71,.25);--txt:#ffb347;--grey:#8a7a5a;
-}
-body.char-riff .bg-pattern{
-  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.15;
-  background-image:
-    repeating-linear-gradient(60deg,transparent 0,transparent 28px,var(--primary) 28px,var(--primary) 29px),
-    repeating-linear-gradient(-60deg,transparent 0,transparent 28px,var(--primary) 28px,var(--primary) 29px),
-    repeating-linear-gradient(0deg,transparent 0,transparent 28px,var(--primary) 28px,var(--primary) 29px);
-  animation:riffHexShift 8s linear infinite;
-}
-@keyframes riffHexShift{from{transform:translate(0,0)}to{transform:translate(28px,28px)}}
-body.char-riff .card{clip-path:polygon(8% 0,92% 0,100% 50%,92% 100%,8% 100%,0 50%);border-radius:0}
-body.char-riff .meter-fill{background:linear-gradient(90deg,var(--accent),var(--primary));box-shadow:0 0 8px var(--primary)}
-
-/* ── REEF: Defender/Tank — Deep Cyan, Shields, Waves ── */
-body.char-reef{
-  --primary:#00d4ff;--accent:#0066cc;--bg:#081420;--bg-mid:#0c1c28;
-  --card-bg:rgba(0,212,255,.06);--border:rgba(0,212,255,.25);--txt:#00d4ff;--grey:#5a7a8a;
-}
-body.char-reef .bg-pattern{
-  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.1;
-  background:repeating-linear-gradient(0deg,transparent 0,transparent 40px,var(--primary) 40px,var(--primary) 41px);
-  animation:reefWave 6s ease-in-out infinite;
-}
-@keyframes reefWave{0%,100%{transform:translateY(0)}50%{transform:translateY(10px)}}
-body.char-reef .card{border-radius:12px;border:2px solid var(--border);box-shadow:inset 0 0 0 1px rgba(0,212,255,.1)}
-body.char-reef .meter-fill{background:linear-gradient(180deg,var(--primary),var(--accent));box-shadow:0 0 8px var(--primary)}
-
-/* ── PITCH: Intel/Comms — Violet/Magenta, Sound Waves ── */
-body.char-pitch{
-  --primary:#b847ff;--accent:#ff00ff;--bg:#14081a;--bg-mid:#1c0c24;
-  --card-bg:rgba(184,71,255,.06);--border:rgba(184,71,255,.25);--txt:#b847ff;--grey:#7a5a8a;
-}
-body.char-pitch .bg-pattern{
-  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.12;
-  background:repeating-linear-gradient(90deg,transparent 0,transparent 3px,var(--primary) 3px,var(--primary) 4px,transparent 4px,transparent 8px,var(--primary) 8px,var(--primary) 9px,transparent 9px,transparent 20px);
-  animation:pitchFreq 1.5s ease-in-out infinite;
-}
-@keyframes pitchFreq{0%,100%{opacity:.08}50%{opacity:.18}}
-body.char-pitch .card{border-radius:8px 8px 4px 4px;border:1px solid var(--border);border-top:3px solid var(--primary)}
-body.char-pitch .meter-fill{background:linear-gradient(90deg,var(--accent),var(--primary));box-shadow:0 0 8px var(--primary)}
-
-/* ── RAIN: Special Ops/Stealth — Green/Silver, Prisms ── */
-body.char-rain{
-  --primary:#5eff8a;--accent:#c0c0c0;--bg:#08140a;--bg-mid:#0c1c0e;
-  --card-bg:rgba(94,255,138,.06);--border:rgba(94,255,138,.25);--txt:#5eff8a;--grey:#5a8a6a;
-}
-body.char-rain .bg-pattern{
-  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.08;
-  background:repeating-linear-gradient(45deg,transparent 0,transparent 20px,var(--primary) 20px,var(--primary) 21px),
-    repeating-linear-gradient(-45deg,transparent 0,transparent 20px,var(--accent) 20px,var(--accent) 21px);
-  animation:rainDrift 12s linear infinite;
-}
-@keyframes rainDrift{from{transform:translate(0,0)}to{transform:translate(40px,40px)}}
-body.char-rain .card{clip-path:polygon(0 0,100% 0,100% 85%,85% 100%,0 100%);border-radius:0}
-body.char-rain .meter-fill{background:linear-gradient(90deg,var(--accent),var(--primary));box-shadow:0 0 8px var(--primary)}
-
-/* ── Layout ── */
-.app{position:relative;z-index:1;display:flex;flex-direction:column;height:100vh;height:100dvh}
-
-/* Squad bar — 4 character tabs */
-.squad-bar{display:flex;gap:4px;padding:8px;background:var(--bg-mid);border-bottom:2px solid var(--border)}
-.squad-tab{flex:1;padding:10px 6px;text-align:center;cursor:pointer;border:1px solid transparent;
-  border-radius:6px;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:4px}
-.squad-tab:hover{border-color:var(--border);background:var(--card-bg)}
-.squad-tab.active{border-color:var(--primary);background:var(--card-bg);box-shadow:0 0 12px var(--primary)}
-.squad-tab .glyph{font-size:1.6em;line-height:1}
-.squad-tab .name{font-size:.65em;letter-spacing:2px;text-transform:uppercase;opacity:.8}
-.squad-tab.active .name{opacity:1;text-shadow:0 0 6px var(--primary)}
-.squad-tab .level{font-size:.5em;opacity:.6}
-
-/* Main scroll area */
-.main{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
-.main::-webkit-scrollbar{width:4px}
-.main::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-
-/* Cards */
-.card{background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:12px;position:relative}
-.card-title{font-size:.65em;letter-spacing:2px;color:var(--grey);text-transform:uppercase;margin-bottom:8px}
-
-/* Character header */
-.char-header{display:flex;align-items:center;gap:12px;padding:14px}
-.char-header .glyph{font-size:2.5em;text-shadow:0 0 12px var(--primary)}
-.char-header .info{flex:1}
-.char-header h2{font-size:1.1em;letter-spacing:3px;text-shadow:0 0 8px var(--primary)}
-.char-header .role{font-size:.65em;color:var(--grey);letter-spacing:1px}
-.char-header .level-badge{font-size:.8em;padding:4px 12px;border:1px solid var(--primary);border-radius:4px;
-  color:var(--primary);text-shadow:0 0 6px var(--primary)}
-
-/* Stats grid */
-.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.stat-box{background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center}
-.stat-label{font-size:.55em;color:var(--grey);letter-spacing:2px;text-transform:uppercase}
-.stat-value{font-size:1.3em;color:var(--primary);text-shadow:0 0 6px var(--primary);margin-top:2px;font-weight:bold}
-
-/* Meters */
-.meter{margin-top:6px}
-.meter-label{display:flex;justify-content:space-between;font-size:.6em;color:var(--grey);margin-bottom:3px}
-.meter-bar{height:8px;background:rgba(0,0,0,.4);border-radius:4px;overflow:hidden;border:1px solid var(--border)}
-.meter-fill{height:100%;transition:width .5s;border-radius:3px}
-.meter-fill.entropy{background:linear-gradient(90deg,#5eff8a,#ffb347,#e23e57)}
-
-/* Schedule */
-.schedule-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:.75em}
-.schedule-item:last-child{border-bottom:none}
-.schedule-time{color:var(--grey);min-width:100px;font-size:.9em}
-.schedule-label{flex:1;color:var(--txt)}
-.schedule-override{font-size:.6em;padding:1px 4px;background:var(--accent);color:var(--bg);border-radius:2px;margin-left:4px}
-
-/* Todos */
-.todo-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.75em;cursor:pointer}
-.todo-item:last-child{border-bottom:none}
-.todo-check{width:20px;height:20px;border:2px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
-.todo-check.done{background:var(--primary);border-color:var(--primary)}
-.todo-check.done::after{content:'✓';color:var(--bg);font-size:.8em;font-weight:bold}
-.todo-text{flex:1}
-.todo-text.done{text-decoration:line-through;opacity:.5}
-
-/* Quests */
-.quest-item{padding:8px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;font-size:.72em}
-.quest-desc{color:var(--txt);margin-bottom:4px}
-.quest-meta{display:flex;justify-content:space-between;color:var(--grey);font-size:.85em}
-.quest-progress{color:var(--primary)}
-.quest-reward{color:#ffb347}
-
-/* Mood log */
-.mood-item{display:inline-block;padding:4px 8px;margin:2px;border-radius:4px;font-size:.65em;
-  border:1px solid var(--border);background:var(--card-bg)}
-.mood-time{color:var(--grey);margin-left:4px}
-
-/* AI Command feed */
-.cmd-feed{position:fixed;top:0;right:0;width:300px;height:100%;background:var(--bg-mid);
-  border-left:2px solid var(--border);z-index:30;transform:translateX(100%);transition:transform .25s;
-  overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:6px}
-.cmd-feed.open{transform:translateX(0)}
-.cmd-feed h3{font-size:.7em;letter-spacing:2px;color:var(--grey);margin-bottom:6px;
-  display:flex;justify-content:space-between;align-items:center}
-.cmd-feed h3 button{background:none;border:none;color:var(--grey);font-size:1.2em;cursor:pointer}
-.cmd-entry{padding:8px;border-radius:4px;font-size:.65em;border-left:3px solid var(--primary);background:var(--card-bg)}
-.cmd-ts{color:var(--grey);font-size:.85em}
-.cmd-action{color:var(--primary);font-weight:bold;margin:2px 0}
-.cmd-payload{color:var(--txt);white-space:pre-wrap;word-break:break-word;max-height:60px;overflow-y:auto}
-.cmd-status{display:inline-block;font-size:.8em;padding:1px 4px;border-radius:2px;margin-top:2px}
-.cmd-status.applied{background:rgba(94,255,138,.2);color:var(--green)}
-.cmd-status.pending{background:rgba(255,179,71,.2);color:#ffb347}
-.cmd-status.failed{background:rgba(226,62,87,.2);color:var(--red)}
-
-/* Action bar */
-.action-bar{display:flex;gap:4px;padding:8px;background:var(--bg-mid);border-top:2px solid var(--border);flex-wrap:wrap}
-.action-btn{flex:1;min-width:60px;padding:10px 6px;background:transparent;border:1px solid var(--border);
-  color:var(--primary);font-family:inherit;font-size:.6em;letter-spacing:1px;cursor:pointer;
-  border-radius:4px;transition:all .2s;text-transform:uppercase;text-align:center}
-.action-btn:hover{border-color:var(--primary);box-shadow:0 0 8px var(--primary);text-shadow:0 0 4px var(--primary)}
-.action-btn.danger{color:var(--red);border-color:var(--border)}
-.action-btn.danger:hover{border-color:var(--red);box-shadow:0 0 12px var(--red);text-shadow:0 0 4px var(--red)}
-.action-btn.active{background:var(--card-bg);border-color:var(--primary)}
-
-/* State inspector */
-.state-inspector{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.8);
-  z-index:40;display:none;align-items:center;justify-content:center;padding:20px}
-.state-inspector.open{display:flex}
-.state-inspector .panel{background:var(--bg-mid);border:2px solid var(--border);border-radius:6px;
-  width:100%;max-width:600px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column}
-.state-inspector h3{padding:12px;border-bottom:1px solid var(--border);font-size:.7em;letter-spacing:2px;
-  display:flex;justify-content:space-between;align-items:center}
-.state-inspector textarea{flex:1;background:var(--bg);color:var(--primary);border:none;
-  font-family:inherit;font-size:.7em;padding:12px;resize:none;min-height:300px;outline:none}
-.state-inspector .actions{padding:8px;display:flex;gap:6px}
-
-/* Modal input */
-.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);
-  z-index:40;display:none;align-items:center;justify-content:center;padding:20px}
-.modal-overlay.open{display:flex}
-.modal-box{background:var(--bg-mid);border:2px solid var(--border);border-radius:6px;
-  padding:16px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:10px}
-.modal-box h3{font-size:.75em;letter-spacing:2px;color:var(--primary)}
-.modal-box textarea,.modal-box input,.modal-box select{background:var(--bg);color:var(--primary);
-  border:1px solid var(--border);font-family:inherit;font-size:.75em;padding:8px;border-radius:4px;outline:none}
-.modal-box textarea{min-height:80px;resize:vertical}
-.modal-box .actions{display:flex;gap:6px}
-.modal-box .actions button{flex:1;padding:8px;background:transparent;border:1px solid var(--border);
-  color:var(--primary);font-family:inherit;font-size:.7em;cursor:pointer;border-radius:4px}
-.modal-box .actions button:hover{border-color:var(--primary);box-shadow:0 0 8px var(--primary)}
-
-/* Connection status */
-.conn-status{position:fixed;top:6px;right:8px;z-index:35;font-size:.55em;
-  padding:3px 8px;border-radius:3px;background:var(--bg-mid);border:1px solid var(--border);
-  display:flex;align-items:center;gap:4px}
-.conn-status .dot{width:6px;height:6px;border-radius:50%}
-.conn-status .dot.ok{background:var(--green);box-shadow:0 0 4px var(--green)}
-.conn-status .dot.err{background:var(--red);box-shadow:0 0 4px var(--red)}
-.conn-status .dot.warn{background:#ffb347;box-shadow:0 0 4px #ffb347}
-
-/* Lock overlay */
-.lock-overlay{position:fixed;inset:0;background:var(--bg);z-index:45;
-  display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
-.lock-overlay.open{display:flex}
-.lock-overlay .lock-icon{font-size:4em;text-shadow:0 0 20px var(--primary)}
-.lock-overlay .lock-msg{font-size:.8em;color:var(--primary);text-shadow:0 0 6px var(--primary);text-align:center;max-width:300px}
-.lock-overlay .lock-remaining{font-size:.65em;color:var(--grey)}
-.lock-overlay .emergency-btn{padding:10px 20px;border:1px solid var(--red);color:var(--red);
-  background:transparent;font-family:inherit;font-size:.7em;cursor:pointer;border-radius:4px}
-.lock-overlay .emergency-btn:hover{box-shadow:0 0 12px var(--red)}
-
-/* Responsive */
-@media(max-width:600px){
-  .stats-grid{grid-template-columns:1fr 1fr}
-  .squad-tab .name{display:none}
-  .squad-tab .glyph{font-size:1.4em}
-  .cmd-feed{width:100%}
-}
-</style>
+<title>Tomogichi · Squad Manager</title>
+<link rel="stylesheet" href="tomogichi.css">
 </head>
-<body class="char-riff">
+<body class="theme-dark char-pet">
 
+<!-- Background pattern -->
 <div class="bg-pattern"></div>
+
+<!-- Connection status -->
 <div class="conn-status">
   <span class="dot warn" id="conn-dot"></span>
   <span id="conn-text">connecting...</span>
 </div>
 
+<!-- Floating timer chip -->
+<div class="timer-chip hidden" id="timer-chip" onclick="showTimerPage()">
+  <span id="timer-chip-display">⏱ 00:00</span>
+</div>
+
+<!-- Coin toast -->
+<div class="coin-toast hidden" id="coin-toast">
+  <span id="coin-toast-text">🏆 +0 💰</span>
+</div>
+
+<!-- Main app -->
 <div class="app">
-  <!-- Squad Bar — 4 Cybertronian characters -->
-  <div class="squad-bar" id="squad-bar">
-    <div class="squad-tab active" data-char="riff" onclick="switchChar('riff')">
-      <span class="glyph">⚡</span><span class="name">RIFF</span><span class="level" id="lvl-riff">Lvl 1</span>
+  <!-- Page stack — only one visible at a time -->
+  <div class="page-stack">
+
+    <!-- ═══════════ GUILD PAGE (Home) ═══════════ -->
+    <div class="page active" id="page-guild">
+      <div class="page-header">
+        <h1 id="guild-level">Guild Level 0</h1>
+        <span class="coins-label" id="guild-coins">💰 0</span>
+      </div>
+      <div class="boosts-row" id="boosts-row"></div>
+      <div class="neglect-banner hidden" id="neglect-banner"></div>
+      <div class="stats-row">
+        <div class="meter">
+          <div class="meter-label"><span>Entropy</span><span id="entropy-val">0/100</span></div>
+          <div class="meter-bar"><div class="meter-fill entropy" id="entropy-bar" style="width:0%"></div></div>
+        </div>
+        <div class="meter">
+          <div class="meter-label"><span>Team Sync</span><span id="sync-val">0%</span></div>
+          <div class="meter-bar"><div class="meter-fill sync" id="sync-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="quick-stats" id="quick-stats"></div>
+      <div class="section-title">Today's Practice</div>
+      <div id="today-practice"></div>
+      <div class="section-title">Squad</div>
+      <div id="char-cards"></div>
     </div>
-    <div class="squad-tab" data-char="reef" onclick="switchChar('reef')">
-      <span class="glyph">🛡</span><span class="name">REEF</span><span class="level" id="lvl-reef">Lvl 1</span>
+
+    <!-- ═══════════ TODAY PAGE ═══════════ -->
+    <div class="page" id="page-today">
+      <div class="page-header"><h1 id="today-month">📅 Loading...</h1></div>
+      <div class="heatmap" id="heatmap"></div>
+      <div class="heatmap-legend">
+        <span class="hm-cell level-0">0</span>
+        <span class="hm-cell level-1">&lt;30m</span>
+        <span class="hm-cell level-2">&lt;90m</span>
+        <span class="hm-cell level-3">90m+</span>
+      </div>
+      <div class="section-title">Today's Schedule</div>
+      <div id="today-schedule"></div>
+      <button class="btn-add" onclick="showModal('schedule')">+ Add Schedule</button>
+      <div class="section-title">Daily Tasks <span id="task-count">0/0</span></div>
+      <div id="daily-todos"></div>
+      <button class="btn-add" onclick="showModal('todo')">+ Add Task</button>
+      <div class="section-title">Birthdays</div>
+      <div id="birthdays"></div>
+      <div class="recommendation" id="recommendation"></div>
     </div>
-    <div class="squad-tab" data-char="pitch" onclick="switchChar('pitch')">
-      <span class="glyph">📡</span><span class="name">PITCH</span><span class="level" id="lvl-pitch">Lvl 1</span>
+
+    <!-- ═══════════ STATS PAGE ═══════════ -->
+    <div class="page" id="page-stats">
+      <div class="page-header"><h1>📊 Stats</h1></div>
+      <div class="sub-tabs" id="stats-tabs">
+        <button class="sub-tab active" onclick="switchStatsTab('skills')">Skills</button>
+        <button class="sub-tab" onclick="switchStatsTab('time')">Time</button>
+        <button class="sub-tab" onclick="switchStatsTab('chains')">Chains</button>
+        <button class="sub-tab" onclick="switchStatsTab('history')">History</button>
+        <button class="sub-tab" onclick="switchStatsTab('week')">Week</button>
+      </div>
+      <div class="sub-content" id="stats-content"></div>
     </div>
-    <div class="squad-tab" data-char="rain" onclick="switchChar('rain')">
-      <span class="glyph">🌧</span><span class="name">RAIN</span><span class="level" id="lvl-rain">Lvl 1</span>
+
+    <!-- ═══════════ MONEY PAGE ═══════════ -->
+    <div class="page" id="page-money">
+      <div class="page-header">
+        <h1>💰 Money Plan</h1>
+        <span class="monthly-summary" id="monthly-summary"></span>
+      </div>
+      <div class="money-overview">
+        <div class="money-card income">
+          <div class="money-label">Income (this month)</div>
+          <div class="money-value" id="money-income">€0</div>
+        </div>
+        <div class="money-card expenses">
+          <div class="money-label">Expenses (this month)</div>
+          <div class="money-value" id="money-expenses">€0</div>
+        </div>
+        <div class="money-card balance">
+          <div class="money-label">Balance</div>
+          <div class="money-value" id="money-balance">€0</div>
+        </div>
+      </div>
+      <div class="section-title">Burn-down</div>
+      <div class="burn-down" id="burn-down"></div>
+      <div class="section-title">By Category</div>
+      <div id="category-breakdown"></div>
+      <div class="section-title">Recent Expenses</div>
+      <div id="recent-expenses"></div>
+      <button class="btn-add" onclick="showModal('expense')">+ Add Expense</button>
+      <button class="btn-add" onclick="showModal('income')">+ Log Income</button>
+      <div class="section-title">Savings Goals</div>
+      <div id="savings-goals"></div>
+      <button class="btn-add" onclick="showModal('goal')">+ Add Savings Goal</button>
+    </div>
+
+    <!-- ═══════════ SETTINGS PAGE ═══════════ -->
+    <div class="page" id="page-settings">
+      <div class="page-header"><h1>⚙ Settings</h1></div>
+      <div class="sub-tabs" id="settings-tabs">
+        <button class="sub-tab active" onclick="switchSettingsTab('tasks')">Tasks</button>
+        <button class="sub-tab" onclick="switchSettingsTab('challenges')">Challenges</button>
+        <button class="sub-tab" onclick="switchSettingsTab('journal')">Journal</button>
+        <button class="sub-tab" onclick="switchSettingsTab('archive')">Archive</button>
+        <button class="sub-tab" onclick="switchSettingsTab('shop')" id="shop-tab">Shop</button>
+        <button class="sub-tab" onclick="switchSettingsTab('birthdays')">Birthdays</button>
+        <button class="sub-tab" onclick="switchSettingsTab('system')">System</button>
+      </div>
+      <div class="sub-content" id="settings-content"></div>
+    </div>
+
+    <!-- ═══════════ PERSON PAGE (pushed) ═══════════ -->
+    <div class="page pushed" id="page-person">
+      <div class="page-header">
+        <button class="back-btn" onclick="popPage()">← Back</button>
+        <h1 id="person-name">Character</h1>
+      </div>
+      <div id="person-detail"></div>
+    </div>
+
+    <!-- ═══════════ TIMER PAGE (pushed) ═══════════ -->
+    <div class="page pushed" id="page-timer">
+      <div class="page-header">
+        <button class="back-btn" onclick="popPage()">← Back</button>
+        <h1 id="timer-person">Character</h1>
+      </div>
+      <div class="timer-display" id="timer-display">00:00</div>
+      <div class="timer-skill" id="timer-skill">skill</div>
+      <div class="timer-planned" id="timer-planned">Free practice</div>
+      <button class="btn-action stop" onclick="stopTimer()">Stop &amp; Log</button>
+      <button class="btn-action cancel" onclick="cancelTimer()">Cancel</button>
     </div>
   </div>
 
-  <!-- Main content -->
-  <div class="main" id="main">
-    <!-- Character header -->
-    <div class="card char-header">
-      <span class="glyph" id="char-glyph">⚡</span>
-      <div class="info">
-        <h2 id="char-name">RIFF</h2>
-        <div class="role" id="char-role">SCOUT // SPEED SPECIALIST</div>
-      </div>
-      <div class="level-badge" id="char-level">LVL 1</div>
-    </div>
-
-    <!-- Stats -->
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="stat-label">Entropy</div>
-        <div class="stat-value" id="stat-entropy">0</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Team Sync</div>
-        <div class="stat-value" id="stat-sync">0%</div>
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Coins</div>
-        <div class="stat-value" id="stat-coins">0</div>
-      </div>
-    </div>
-
-    <!-- Entropy meter -->
-    <div class="card">
-      <div class="card-title">Squad Status</div>
-      <div class="meter">
-        <div class="meter-label"><span>Entropy</span><span id="entropy-val">0/100</span></div>
-        <div class="meter-bar"><div class="meter-fill entropy" id="entropy-bar" style="width:0%"></div></div>
-      </div>
-      <div class="meter">
-        <div class="meter-label"><span>Team Sync</span><span id="sync-val">0%</span></div>
-        <div class="meter-bar"><div class="meter-fill" id="sync-bar" style="width:0%"></div></div>
-      </div>
-    </div>
-
-    <!-- Today's Schedule -->
-    <div class="card">
-      <div class="card-title">Today's Schedule</div>
-      <div id="schedule-list"><div style="color:var(--grey);font-size:.7em">No schedule</div></div>
-    </div>
-
-    <!-- Today's Todos -->
-    <div class="card">
-      <div class="card-title">Today's Todos</div>
-      <div id="todo-list"><div style="color:var(--grey);font-size:.7em">No tasks</div></div>
-    </div>
-
-    <!-- Active Quests -->
-    <div class="card">
-      <div class="card-title">Active Quests</div>
-      <div id="quest-list"><div style="color:var(--grey);font-size:.7em">No active quests</div></div>
-    </div>
-
-    <!-- Recent Moods -->
-    <div class="card">
-      <div class="card-title">Recent Moods</div>
-      <div id="mood-list"><div style="color:var(--grey);font-size:.7em">No moods logged</div></div>
-    </div>
-
-    <!-- Diary -->
-    <div class="card">
-      <div class="card-title">Recent Diary</div>
-      <div id="diary-list"><div style="color:var(--grey);font-size:.7em">No entries</div></div>
-    </div>
-
-    <!-- Milestones -->
-    <div class="card">
-      <div class="card-title">Milestones</div>
-      <div id="milestone-list"><div style="color:var(--grey);font-size:.7em">No milestones</div></div>
-    </div>
+  <!-- Bottom tab bar -->
+  <div class="tab-bar">
+    <button class="tab active" data-page="guild" onclick="switchTab('guild')">
+      <span class="tab-icon">🏠</span><span class="tab-label">Guild</span>
+    </button>
+    <button class="tab" data-page="today" onclick="switchTab('today')">
+      <span class="tab-icon">📅</span><span class="tab-label">Today</span>
+    </button>
+    <button class="tab" data-page="stats" onclick="switchTab('stats')">
+      <span class="tab-icon">📊</span><span class="tab-label">Stats</span>
+    </button>
+    <button class="tab" data-page="money" onclick="switchTab('money')">
+      <span class="tab-icon">💰</span><span class="tab-label">Money</span>
+    </button>
+    <button class="tab" data-page="settings" onclick="switchTab('settings')">
+      <span class="tab-icon">⚙</span><span class="tab-label">Settings</span>
+    </button>
   </div>
+</div>
 
-  <!-- Action bar -->
-  <div class="action-bar">
-    <button class="action-btn" onclick="showModal('diary')">📓 Diary</button>
-    <button class="action-btn" onclick="showModal('mood')">🎭 Mood</button>
-    <button class="action-btn" onclick="showModal('todo')">📋 Task</button>
-    <button class="action-btn" onclick="showModal('quest')">⚔ Quest</button>
-    <button class="action-btn" onclick="toggleCmdFeed()">📡 AI Feed</button>
-    <button class="action-btn" onclick="toggleStateInspector()">🔍 State</button>
-    <button class="action-btn" onclick="showModal('lock')">🔒 Lock</button>
-    <button class="action-btn danger" onclick="triggerEmergency()">⚡ SOS</button>
+<!-- Effect picker overlay -->
+<div class="overlay hidden" id="effect-overlay">
+  <div class="overlay-card">
+    <h3 id="effect-title">How do you feel?</h3>
+    <div class="effect-buttons">
+      <button class="effect-btn energized" onclick="logEffect('energized')">🔋 Energized</button>
+      <button class="effect-btn neutral" onclick="logEffect('neutral')">😐 Neutral</button>
+      <button class="effect-btn tired" onclick="logEffect('tired')">😮‍💨 Tired</button>
+      <button class="effect-btn drained" onclick="logEffect('drained')">🪫 Drained</button>
+    </div>
+    <textarea id="effect-notes" placeholder="Notes (optional)..."></textarea>
+    <button class="btn-action" onclick="logEffectWithNotes()">Save</button>
   </div>
 </div>
 
 <!-- AI Command Feed -->
 <div class="cmd-feed" id="cmd-feed">
-  <h3>AI COMMAND FEED <button onclick="toggleCmdFeed()">✕</button></h3>
-  <div id="cmd-entries" style="display:flex;flex-direction:column;gap:4px">
-    <div style="color:var(--grey);font-size:.65em;text-align:center;padding:20px">No AI commands yet.<br>Open Teletraan-1 and talk to the AI — commands will appear here in real-time.</div>
+  <div class="cmd-feed-header">
+    <h3>📡 AI Command Feed</h3>
+    <button onclick="toggleCmdFeed()">✕</button>
   </div>
+  <div id="cmd-entries"></div>
 </div>
 
 <!-- State Inspector -->
-<div class="state-inspector" id="state-inspector">
-  <div class="panel">
-    <h3>STATE INSPECTOR (agora-state.json) <button onclick="toggleStateInspector()" style="background:none;border:none;color:var(--grey);cursor:pointer;font-size:1.2em">✕</button></h3>
+<div class="overlay hidden" id="state-overlay">
+  <div class="overlay-card state-inspector">
+    <h3>State Inspector (state.json)</h3>
     <textarea id="state-textarea" spellcheck="false"></textarea>
-    <div class="actions">
-      <button onclick="saveStateFromTextarea()">Apply Changes</button>
-      <button onclick="reloadState()">Reload from Disk</button>
-      <button onclick="resetState()">Reset to Default</button>
+    <div class="state-actions">
+      <button onclick="saveStateFromTextarea()">Apply</button>
+      <button onclick="reloadState()">Reload</button>
+      <button onclick="resetState()">Reset</button>
+      <button onclick="toggleStateInspector()">Close</button>
     </div>
   </div>
 </div>
 
-<!-- Modal Input -->
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal-box">
+<!-- Modal -->
+<div class="overlay hidden" id="modal-overlay">
+  <div class="overlay-card">
     <h3 id="modal-title">Title</h3>
     <div id="modal-body"></div>
-    <div class="actions">
+    <div class="modal-actions">
       <button onclick="closeModal()">Cancel</button>
-      <button id="modal-ok" onclick="">OK</button>
+      <button id="modal-ok">OK</button>
     </div>
   </div>
 </div>
 
-<!-- Lock Overlay -->
-<div class="lock-overlay" id="lock-overlay">
-  <div class="lock-icon">🔒</div>
-  <div class="lock-msg" id="lock-msg">App locked for focus block.</div>
-  <div class="lock-remaining" id="lock-remaining"></div>
-  <button class="emergency-btn" onclick="triggerEmergency()">⚡ Emergency Override</button>
+<!-- Lock overlay -->
+<div class="overlay hidden" id="lock-overlay">
+  <div class="overlay-card lock-card">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-msg" id="lock-msg">App locked for focus block.</div>
+    <div class="lock-remaining" id="lock-remaining"></div>
+    <button class="btn-action danger" onclick="triggerEmergency()">⚡ Emergency Override</button>
+  </div>
 </div>
 
-<script>
-// ═══════════════════════════════════════════════
-// TOMOGICHI WEB — Cybertronian Squad Manager
-// Bridge protocol: reads/writes agora-*.json files
-// via bridge.py HTTP endpoints
-// ═══════════════════════════════════════════════
+<!-- Onboarding overlay -->
+<div class="overlay hidden" id="onboarding-overlay">
+  <div class="overlay-card">
+    <h2>🎮 Welcome to Tomogichi</h2>
+    <p>Your Cybertronian squad is ready. Four companions — Riff, Reef, Pitch, Rain — are waiting for you to practice skills, earn XP, and keep entropy at bay.</p>
+    <p>Practice skills with the timer, log your mood, complete challenges, and grow your guild.</p>
+    <button class="btn-action" onclick="dismissOnboarding()">Let's Go!</button>
+  </div>
+</div>
 
-var BRIDGE_URL = 'http://localhost:9191';
-var state = null;
-var activeChar = 'riff';
-var lastCmdLine = 0;  // track processed commands
-var cmdResults = {};
-var pollTimer = null;
-var lockTimer = null;
-
-var CHARACTERS = {
-  riff:  {glyph:'⚡', name:'RIFF',  role:'SCOUT // SPEED SPECIALIST',  color:'#ffb347'},
-  reef:  {glyph:'🛡', name:'REEF',  role:'DEFENDER // TANK',          color:'#00d4ff'},
-  pitch: {glyph:'📡', name:'PITCH', role:'INTEL // COMMS',            color:'#b847ff'},
-  rain:  {glyph:'🌧', name:'RAIN',  role:'SPECIAL OPS // STEALTH',     color:'#5eff8a'},
-};
-
-var DEFAULT_STATE = {
-  persons: [
-    {name:'Riff',  level:1, xp:0, skills:{speed:1, focus:1}},
-    {name:'Reef',  level:1, xp:0, skills:{defense:1, patience:1}},
-    {name:'Pitch', level:1, xp:0, skills:{comms:1, insight:1}},
-    {name:'Rain',  level:1, xp:0, skills:{stealth:1, precision:1}},
-  ],
-  master: {
-    daily_todos: [],
-    entropy: 0,
-    team_sync: 50,
-    mood_log: [],
-    coins: 0,
-    diary: [],
-    locked_until: null,
-  },
-  schedule: {
-    recurring: [],
-    overrides: [],
-  },
-  challenges: [],
-  milestones: [],
-  rendered: {
-    today_iso: new Date().toISOString().substring(0,10),
-    week_label: 'Week ' + getWeekNumber(),
-    today_schedule: [],
-    today_todos: [],
-    week: [],
-  }
-};
-
-function getWeekNumber() {
-  var d = new Date();
-  var onejan = new Date(d.getFullYear(),0,1);
-  return Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
-}
-
-// ── Bridge I/O ──
-async function bridgeRead(filename) {
-  try {
-    var res = await fetch(BRIDGE_URL + '/read/' + encodeURIComponent(filename));
-    if (!res.ok) return null;
-    return await res.text();
-  } catch(e) { return null; }
-}
-
-async function bridgeWrite(filename, content) {
-  try {
-    var res = await fetch(BRIDGE_URL + '/write/' + encodeURIComponent(filename), {
-      method:'POST', body: content
-    });
-    return res.ok;
-  } catch(e) { return false; }
-}
-
-async function bridgeAppend(filename, line) {
-  try {
-    var res = await fetch(BRIDGE_URL + '/append/' + encodeURIComponent(filename), {
-      method:'POST', body: line + '\n'
-    });
-    return res.ok;
-  } catch(e) { return false; }
-}
-
-async function bridgeExists(filename) {
-  try {
-    var res = await fetch(BRIDGE_URL + '/exists/' + encodeURIComponent(filename));
-    return res.ok && (await res.json()).exists;
-  } catch(e) { return false; }
-}
-
-// ── State management ──
-async function loadState() {
-  var raw = await bridgeRead('agora-state.json');
-  if (raw && raw.trim()) {
-    try {
-      state = JSON.parse(raw);
-      // Ensure all required fields exist
-      state = mergeDefaults(state, DEFAULT_STATE);
-    } catch(e) {
-      console.error('State parse error:', e);
-      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-    }
-  } else {
-    state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-    await saveState();
-  }
-  // Load command results
-  var resultsRaw = await bridgeRead('agora-results.json');
-  if (resultsRaw && resultsRaw.trim()) {
-    try { cmdResults = JSON.parse(resultsRaw); } catch(e) { cmdResults = {}; }
-  }
-  // Count existing commands (so we don't re-apply old ones)
-  var cmdsRaw = await bridgeRead('agora-commands.jsonl');
-  if (cmdsRaw) {
-    var lines = cmdsRaw.trim().split('\n').filter(function(l){return l.trim();});
-    lastCmdLine = lines.length;
-  }
-  updateConnStatus('ok', 'connected');
-  renderAll();
-}
-
-function mergeDefaults(s, d) {
-  for (var k in d) {
-    if (!d.hasOwnProperty(k)) continue;
-    if (s[k] === undefined) s[k] = JSON.parse(JSON.stringify(d[k]));
-    else if (typeof d[k] === 'object' && !Array.isArray(d[k]) && d[k] !== null) {
-      mergeDefaults(s[k], d[k]);
-    }
-  }
-  return s;
-}
-
-async function saveState() {
-  if (!state) return;
-  // Recompute rendered section before saving
-  computeRendered();
-  await bridgeWrite('agora-state.json', JSON.stringify(state, null, 2));
-}
-
-function computeRendered() {
-  if (!state) return;
-  var now = new Date();
-  var today = now.toISOString().substring(0,10);
-  state.rendered = state.rendered || {};
-  state.rendered.today_iso = today;
-  state.rendered.week_label = 'Week ' + getWeekNumber();
-  state.rendered.today_todos = (state.master.daily_todos || []).map(function(t) {
-    return {text: t.text, done: !!t.done};
-  });
-  // Build today's schedule from recurring + overrides
-  var dow = now.getDay(); // 0=Sun
-  var daySchedule = [];
-  if (state.schedule && state.schedule.recurring) {
-    for (var i = 0; i < state.schedule.recurring.length; i++) {
-      var r = state.schedule.recurring[i];
-      if (!r.days || r.days.indexOf(dow) >= 0) {
-        daySchedule.push({
-          start: pad(r.start_hour) + ':' + pad(r.start_minute),
-          end: pad(r.end_hour) + ':' + pad(r.end_minute),
-          label: r.label,
-          is_override: false
-        });
-      }
-    }
-  }
-  if (state.schedule && state.schedule.overrides) {
-    for (var j = 0; j < state.schedule.overrides.length; j++) {
-      var o = state.schedule.overrides[j];
-      if (today >= o.start_date && today <= o.end_date) {
-        daySchedule.push({
-          start: pad(o.start_hour) + ':' + pad(o.start_minute),
-          end: pad(o.end_hour) + ':' + pad(o.end_minute),
-          label: o.label,
-          is_override: true
-        });
-      }
-    }
-  }
-  daySchedule.sort(function(a,b) { return a.start.localeCompare(b.start); });
-  state.rendered.today_schedule = daySchedule;
-  // Build week view
-  var week = [];
-  for (var d = 0; d < 7; d++) {
-    var dt = new Date(now);
-    dt.setDate(now.getDate() - now.getDay() + d);
-    var iso = dt.toISOString().substring(0,10);
-    var dDow = dt.getDay();
-    var dSchedule = [];
-    if (state.schedule && state.schedule.recurring) {
-      for (var r2 of state.schedule.recurring) {
-        if (!r2.days || r2.days.indexOf(dDow) >= 0) {
-          dSchedule.push({start:pad(r2.start_hour)+':'+pad(r2.start_minute), end:pad(r2.end_hour)+':'+pad(r2.end_minute), label:r2.label, is_override:false});
-        }
-      }
-    }
-    week.push({dow:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dDow], iso:iso, schedule:dSchedule, todos:[]});
-  }
-  state.rendered.week = week;
-}
-
-function pad(n) { return String(n || 0).padStart(2, '0'); }
-
-// ── Command consumer (polls agora-commands.jsonl) ──
-async function pollCommands() {
-  var raw = await bridgeRead('agora-commands.jsonl');
-  if (!raw || !raw.trim()) return;
-  var lines = raw.trim().split('\n');
-  if (lines.length <= lastCmdLine) return;  // no new commands
-  var newLines = lines.slice(lastCmdLine);
-  lastCmdLine = lines.length;
-  for (var i = 0; i < newLines.length; i++) {
-    var line = newLines[i].trim();
-    if (!line) continue;
-    try {
-      var cmd = JSON.parse(line);
-      await applyCommand(cmd);
-    } catch(e) {
-      console.error('Command parse error:', e, line);
-    }
-  }
-  await saveState();
-  renderAll();
-}
-
-async function applyCommand(cmd) {
-  var result = {status: 'applied', ts: new Date().toISOString()};
-  try {
-    switch(cmd.action) {
-      case 'diary_add':
-        state.master.diary = state.master.diary || [];
-        state.master.diary.unshift({text: cmd.payload.text, ts: new Date().toISOString().substring(0,19)});
-        if (state.master.diary.length > 50) state.master.diary = state.master.diary.slice(0, 50);
-        break;
-      case 'todo_add':
-        state.master.daily_todos = state.master.daily_todos || [];
-        state.master.daily_todos.push({text: cmd.payload.text, done: false, id: 'todo_' + Date.now()});
-        break;
-      case 'schedule_add_override':
-        state.schedule = state.schedule || {recurring:[], overrides:[]};
-        state.schedule.overrides = state.schedule.overrides || [];
-        state.schedule.overrides.push(cmd.payload);
-        break;
-      case 'mood_log':
-        state.master.mood_log = state.master.mood_log || [];
-        state.master.mood_log.push({word: cmd.payload.word, ts: new Date().toISOString().substring(0,19)});
-        if (state.master.mood_log.length > 30) state.master.mood_log = state.master.mood_log.slice(-30);
-        break;
-      case 'lock_app':
-        var hours = cmd.payload.duration_hours || 1;
-        var until = new Date(Date.now() + hours * 3600000);
-        state.master.locked_until = until.toISOString();
-        showLock(hours);
-        break;
-      case 'challenge_add':
-        state.challenges = state.challenges || [];
-        var ch = cmd.payload;
-        ch.id = 'ch_' + Date.now();
-        ch.progress = 0;
-        ch.created = new Date().toISOString().substring(0,10);
-        state.challenges.push(ch);
-        break;
-      case 'challenge_delete':
-        state.challenges = state.challenges || [];
-        var desc = (cmd.payload.description || '').toLowerCase();
-        state.challenges = state.challenges.filter(function(c) {
-          return (c.description || '').toLowerCase().indexOf(desc) < 0;
-        });
-        break;
-      case 'milestone_add':
-        state.milestones = state.milestones || [];
-        state.milestones.push({id:cmd.payload.id, name:cmd.payload.name, description:cmd.payload.description, icon:cmd.payload.icon, unlocked:false, created:new Date().toISOString().substring(0,10)});
-        break;
-      case 'milestone_unlock':
-        state.milestones = state.milestones || [];
-        for (var m of state.milestones) {
-          if (m.id === cmd.payload.id) { m.unlocked = true; m.unlocked_at = new Date().toISOString().substring(0,10); }
-        }
-        break;
-      case 'milestone_delete':
-        state.milestones = state.milestones || [];
-        state.milestones = state.milestones.filter(function(m) { return m.id !== cmd.payload.id; });
-        break;
-      default:
-        result.status = 'failed';
-        result.error = 'Unknown action: ' + cmd.action;
-    }
-  } catch(e) {
-    result.status = 'failed';
-    result.error = e.message;
-  }
-  cmdResults[cmd.id] = result;
-  await bridgeWrite('agora-results.json', JSON.stringify(cmdResults, null, 2));
-  addCmdFeedEntry(cmd, result);
-}
-
-// ── AI Command Feed ──
-function addCmdFeedEntry(cmd, result) {
-  var container = document.getElementById('cmd-entries');
-  // Remove "no commands" placeholder
-  if (container.children.length === 1 && container.children[0].style.textAlign === 'center') {
-    container.innerHTML = '';
-  }
-  var entry = document.createElement('div');
-  entry.className = 'cmd-entry';
-  var ts = cmd.ts || new Date().toISOString().substring(0,19);
-  entry.innerHTML =
-    '<div class="cmd-ts">' + ts + '</div>' +
-    '<div class="cmd-action">' + cmd.action + '</div>' +
-    '<div class="cmd-payload">' + JSON.stringify(cmd.payload, null, 2).substring(0, 200) + '</div>' +
-    '<span class="cmd-status ' + result.status + '">' + result.status + '</span>';
-  container.insertBefore(entry, container.firstChild);
-  // Auto-open feed on new command
-  if (!document.getElementById('cmd-feed').classList.contains('open')) {
-    document.getElementById('cmd-feed').classList.add('open');
-  }
-}
-
-function toggleCmdFeed() {
-  document.getElementById('cmd-feed').classList.toggle('open');
-}
-
-// ── Rendering ──
-function renderAll() {
-  if (!state) return;
-  renderCharHeader();
-  renderStats();
-  renderSchedule();
-  renderTodos();
-  renderQuests();
-  renderMoods();
-  renderDiary();
-  renderMilestones();
-  renderLevels();
-  checkLock();
-}
-
-function renderCharHeader() {
-  var c = CHARACTERS[activeChar];
-  document.getElementById('char-glyph').textContent = c.glyph;
-  document.getElementById('char-name').textContent = c.name;
-  document.getElementById('char-role').textContent = c.role;
-  var person = (state.persons || []).find(function(p){return p.name.toLowerCase() === activeChar;});
-  var lvl = person ? (person.level || 1) : 1;
-  document.getElementById('char-level').textContent = 'LVL ' + lvl;
-}
-
-function renderStats() {
-  document.getElementById('stat-entropy').textContent = state.master.entropy || 0;
-  document.getElementById('stat-sync').textContent = (state.master.team_sync || 0) + '%';
-  document.getElementById('stat-coins').textContent = state.master.coins || 0;
-  // Meters
-  var ent = state.master.entropy || 0;
-  document.getElementById('entropy-val').textContent = ent + '/100';
-  document.getElementById('entropy-bar').style.width = Math.min(100, ent) + '%';
-  var sync = state.master.team_sync || 0;
-  document.getElementById('sync-val').textContent = sync + '%';
-  document.getElementById('sync-bar').style.width = Math.min(100, sync) + '%';
-}
-
-function renderSchedule() {
-  var container = document.getElementById('schedule-list');
-  var sched = (state.rendered && state.rendered.today_schedule) || [];
-  if (sched.length === 0) {
-    container.innerHTML = '<div style="color:var(--grey);font-size:.7em">No schedule today</div>';
-    return;
-  }
-  container.innerHTML = '';
-  for (var s of sched) {
-    var div = document.createElement('div');
-    div.className = 'schedule-item';
-    div.innerHTML = '<span class="schedule-time">' + s.start + '-' + s.end + '</span>' +
-      '<span class="schedule-label">' + escapeHtml(s.label) + '</span>' +
-      (s.is_override ? '<span class="schedule-override">OVERRIDE</span>' : '');
-    container.appendChild(div);
-  }
-}
-
-function renderTodos() {
-  var container = document.getElementById('todo-list');
-  var todos = state.master.daily_todos || [];
-  if (todos.length === 0) {
-    container.innerHTML = '<div style="color:var(--grey);font-size:.7em">No tasks today</div>';
-    return;
-  }
-  container.innerHTML = '';
-  for (var t of todos) {
-    var div = document.createElement('div');
-    div.className = 'todo-item';
-    div.innerHTML = '<div class="todo-check ' + (t.done ? 'done' : '') + '"></div>' +
-      '<span class="todo-text ' + (t.done ? 'done' : '') + '">' + escapeHtml(t.text) + '</span>';
-    div.onclick = function(t, div) {
-      return function() {
-        t.done = !t.done;
-        div.querySelector('.todo-check').classList.toggle('done');
-        div.querySelector('.todo-text').classList.toggle('done');
-        saveState();
-        // Small entropy change
-        if (t.done) { state.master.entropy = Math.max(0, (state.master.entropy || 0) - 2); }
-        else { state.master.entropy = Math.min(100, (state.master.entropy || 0) + 2); }
-        renderStats();
-      };
-    }(t, div);
-    container.appendChild(div);
-  }
-}
-
-function renderQuests() {
-  var container = document.getElementById('quest-list');
-  var quests = state.challenges || [];
-  if (quests.length === 0) {
-    container.innerHTML = '<div style="color:var(--grey);font-size:.7em">No active quests</div>';
-    return;
-  }
-  container.innerHTML = '';
-  for (var q of quests) {
-    var div = document.createElement('div');
-    div.className = 'quest-item';
-    var progress = q.progress || 0;
-    var target = q.target_count || 1;
-    div.innerHTML =
-      '<div class="quest-desc">⚔ ' + escapeHtml(q.description || '') + '</div>' +
-      '<div class="quest-meta">' +
-        '<span class="quest-progress">' + progress + '/' + target + '</span>' +
-        '<span>' + escapeHtml(q.person || '') + ' · ' + escapeHtml(q.skill || '') + '</span>' +
-        '<span class="quest-reward">' + (q.coin_reward || 0) + ' 🪙</span>' +
-      '</div>';
-    // Click to increment progress
-    div.onclick = function(q) {
-      return function() {
-        q.progress = (q.progress || 0) + 1;
-        if (q.progress >= (q.target_count || 1)) {
-          state.master.coins = (state.master.coins || 0) + (q.coin_reward || 10);
-          state.challenges = state.challenges.filter(function(c){return c !== q;});
-        }
-        saveState();
-        renderAll();
-      };
-    }(q);
-    div.style.cursor = 'pointer';
-    container.appendChild(div);
-  }
-}
-
-function renderMoods() {
-  var container = document.getElementById('mood-list');
-  var moods = state.master.mood_log || [];
-  if (moods.length === 0) {
-    container.innerHTML = '<div style="color:var(--grey);font-size:.7em">No moods logged</div>';
-    return;
-  }
-  container.innerHTML = '';
-  var recent = moods.slice(-10).reverse();
-  for (var m of recent) {
-    var span = document.createElement('span');
-    span.className = 'mood-item';
-    span.innerHTML = '🎭 ' + escapeHtml(m.word) + ' <span class="mood-time">' + escapeHtml(m.ts || '') + '</span>';
-    container.appendChild(span);
-  }
-}
-
-function renderDiary() {
-  var container = document.getElementById('diary-list');
-  var entries = state.master.diary || [];
-  if (entries.length === 0) {
-    container.innerHTML = '<div style="color:var(--grey);font-size:.7em">No entries</div>';
-    return;
-  }
-  container.innerHTML = '';
-  var recent = entries.slice(0, 5);
-  for (var e of recent) {
-    var div = document.createElement('div');
-    div.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);font-size:.72em';
-    div.innerHTML = '<div style="color:var(--grey);font-size:.85em">' + escapeHtml(e.ts || '') + '</div>' +
-      '<div style="margin-top:2px">' + escapeHtml(e.text || '').substring(0, 200) + '</div>';
-    container.appendChild(div);
-  }
-}
-
-function renderMilestones() {
-  var container = document.getElementById('milestone-list');
-  var ms = state.milestones || [];
-  if (ms.length === 0) {
-    container.innerHTML = '<div style="color:var(--grey);font-size:.7em">No milestones</div>';
-    return;
-  }
-  container.innerHTML = '';
-  for (var m of ms) {
-    var div = document.createElement('div');
-    div.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);font-size:.72em';
-    var icon = m.icon || '🏆';
-    var name = m.name || m.id;
-    var unlocked = m.unlocked ? '<span style="color:var(--green)">✓ UNLOCKED</span>' : '<span style="color:var(--grey)">locked</span>';
-    div.innerHTML = icon + ' ' + escapeHtml(name) + ' ' + unlocked;
-    if (m.description) div.innerHTML += '<div style="color:var(--grey);font-size:.9em;margin-top:2px">' + escapeHtml(m.description) + '</div>';
-    container.appendChild(div);
-  }
-}
-
-function renderLevels() {
-  for (var i = 0; i < state.persons.length; i++) {
-    var p = state.persons[i];
-    var el = document.getElementById('lvl-' + p.name.toLowerCase());
-    if (el) el.textContent = 'Lvl ' + (p.level || 1);
-  }
-}
-
-// ── Character switching ──
-function switchChar(charName) {
-  activeChar = charName;
-  // Update body class
-  document.body.className = 'char-' + charName;
-  // Update squad tab
-  var tabs = document.querySelectorAll('.squad-tab');
-  for (var t of tabs) {
-    t.classList.toggle('active', t.dataset.char === charName);
-  }
-  renderCharHeader();
-}
-
-// ── Connection status ──
-function updateConnStatus(state, msg) {
-  var dot = document.getElementById('conn-dot');
-  var text = document.getElementById('conn-text');
-  dot.className = 'dot ' + state;
-  text.textContent = msg;
-}
-
-// ── Emergency ──
-async function triggerEmergency() {
-  var msg = prompt('Emergency message (or leave empty for generic):');
-  if (msg === null) return;  // cancelled
-  var content = msg || 'Emergency triggered from Tomogichi Web at ' + new Date().toISOString();
-  await bridgeWrite('agora-emergency.flag', content);
-  addCmdFeedEntry({id:'emergency_' + Date.now(), ts:new Date().toISOString().substring(0,19), action:'EMERGENCY_FLAG', payload:{message: content}}, {status:'applied'});
-  alert('Emergency flag set. Teletraan-1 will respond within 5 seconds.');
-}
-
-async function clearEmergency() {
-  await bridgeWrite('agora-emergency.flag', '');
-}
-
-// ── Lock ──
-function showLock(hours) {
-  document.getElementById('lock-overlay').classList.add('open');
-  document.getElementById('lock-msg').textContent = 'App locked for ' + hours + 'h focus block.';
-  checkLock();
-}
-
-function checkLock() {
-  if (!state || !state.master.locked_until) {
-    document.getElementById('lock-overlay').classList.remove('open');
-    return;
-  }
-  var until = new Date(state.master.locked_until);
-  var now = new Date();
-  if (until <= now) {
-    state.master.locked_until = null;
-    document.getElementById('lock-overlay').classList.remove('open');
-    saveState();
-    return;
-  }
-  document.getElementById('lock-overlay').classList.add('open');
-  var remaining = until - now;
-  var h = Math.floor(remaining / 3600000);
-  var m = Math.floor((remaining % 3600000) / 60000);
-  document.getElementById('lock-remaining').textContent = 'Remaining: ' + h + 'h ' + m + 'm';
-  if (lockTimer) clearTimeout(lockTimer);
-  lockTimer = setTimeout(checkLock, 1000);
-}
-
-// ── Modals ──
-function showModal(type) {
-  var overlay = document.getElementById('modal-overlay');
-  var title = document.getElementById('modal-title');
-  var body = document.getElementById('modal-body');
-  var ok = document.getElementById('modal-ok');
-  if (type === 'diary') {
-    title.textContent = 'Add Diary Entry';
-    body.innerHTML = '<textarea id="modal-input" placeholder="What happened today?"></textarea>';
-    ok.textContent = 'Add Entry';
-    ok.onclick = async function() {
-      var text = document.getElementById('modal-input').value.trim();
-      if (!text) return;
-      state.master.diary = state.master.diary || [];
-      state.master.diary.unshift({text: text, ts: new Date().toISOString().substring(0,19)});
-      await saveState();
-      renderAll();
-      closeModal();
-    };
-  } else if (type === 'mood') {
-    title.textContent = 'Log Mood';
-    var moods = ['energetic','focused','calm','tired','grateful','frustrated','determined','creative','anxious','happy','sad'];
-    body.innerHTML = '<select id="modal-input">' + moods.map(function(m){return '<option value="'+m+'">'+m+'</option>';}).join('') + '</select>';
-    ok.textContent = 'Log';
-    ok.onclick = async function() {
-      var word = document.getElementById('modal-input').value;
-      state.master.mood_log = state.master.mood_log || [];
-      state.master.mood_log.push({word: word, ts: new Date().toISOString().substring(0,19)});
-      await saveState();
-      renderAll();
-      closeModal();
-    };
-  } else if (type === 'todo') {
-    title.textContent = 'Add Task';
-    body.innerHTML = '<input id="modal-input" placeholder="Task text..." style="width:100%">';
-    ok.textContent = 'Add';
-    ok.onclick = async function() {
-      var text = document.getElementById('modal-input').value.trim();
-      if (!text) return;
-      state.master.daily_todos = state.master.daily_todos || [];
-      state.master.daily_todos.push({text: text, done: false, id: 'todo_' + Date.now()});
-      await saveState();
-      renderAll();
-      closeModal();
-    };
-  } else if (type === 'quest') {
-    title.textContent = 'Create Quest';
-    body.innerHTML =
-      '<input id="modal-desc" placeholder="Quest description..." style="width:100%;margin-bottom:6px">' +
-      '<select id="modal-person" style="width:100%;margin-bottom:6px">' +
-        '<option value="riff">Riff (Speed)</option>' +
-        '<option value="reef">Reef (Defense)</option>' +
-        '<option value="pitch">Pitch (Intel)</option>' +
-        '<option value="rain">Rain (Stealth)</option>' +
-      '</select>' +
-      '<input id="modal-target" type="number" placeholder="Target count (e.g. 7)" style="width:100%;margin-bottom:6px" value="7">' +
-      '<input id="modal-days" type="number" placeholder="Days (e.g. 7)" style="width:100%;margin-bottom:6px" value="7">' +
-      '<input id="modal-reward" type="number" placeholder="Coin reward (10-50)" style="width:100%" value="20">';
-    ok.textContent = 'Create';
-    ok.onclick = async function() {
-      var desc = document.getElementById('modal-desc').value.trim();
-      if (!desc) return;
-      state.challenges = state.challenges || [];
-      state.challenges.push({
-        id: 'ch_' + Date.now(),
-        description: desc,
-        person: document.getElementById('modal-person').value,
-        skill: '',
-        target_count: parseInt(document.getElementById('modal-target').value) || 1,
-        target_days: parseInt(document.getElementById('modal-days').value) || 7,
-        coin_reward: parseInt(document.getElementById('modal-reward').value) || 10,
-        progress: 0,
-        created: new Date().toISOString().substring(0,10)
-      });
-      await saveState();
-      renderAll();
-      closeModal();
-    };
-  } else if (type === 'lock') {
-    title.textContent = 'Lock App (Focus Block)';
-    body.innerHTML = '<select id="modal-input"><option value="1">1 hour</option><option value="2">2 hours</option><option value="4">4 hours</option><option value="8">8 hours</option><option value="24">24 hours</option></select>';
-    ok.textContent = 'Lock';
-    ok.onclick = async function() {
-      var hours = parseInt(document.getElementById('modal-input').value);
-      state.master.locked_until = new Date(Date.now() + hours * 3600000).toISOString();
-      await saveState();
-      showLock(hours);
-      closeModal();
-    };
-  }
-  overlay.classList.add('open');
-}
-
-function closeModal() {
-  document.getElementById('modal-overlay').classList.remove('open');
-}
-
-// ── State inspector ──
-function toggleStateInspector() {
-  var el = document.getElementById('state-inspector');
-  if (el.classList.contains('open')) {
-    el.classList.remove('open');
-  } else {
-    document.getElementById('state-textarea').value = JSON.stringify(state, null, 2);
-    el.classList.add('open');
-  }
-}
-
-async function saveStateFromTextarea() {
-  try {
-    state = JSON.parse(document.getElementById('state-textarea').value);
-    await saveState();
-    renderAll();
-    addMessage('State updated from inspector.');
-    toggleStateInspector();
-  } catch(e) {
-    alert('JSON parse error: ' + e.message);
-  }
-}
-
-async function reloadState() {
-  await loadState();
-  document.getElementById('state-textarea').value = JSON.stringify(state, null, 2);
-}
-
-async function resetState() {
-  if (!confirm('Reset state to defaults? This will overwrite agora-state.json.')) return;
-  state = JSON.parse(JSON.stringify(DEFAULT_STATE));
-  await saveState();
-  document.getElementById('state-textarea').value = JSON.stringify(state, null, 2);
-  renderAll();
-}
-
-// ── Utilities ──
-function escapeHtml(text) {
-  if (!text) return '';
-  return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function addMessage(msg) {
-  // Could show as a toast or in the command feed
-  console.log('[tomogichi]', msg);
-}
-
-// ── Init ──
-async function init() {
-  // Check bridge connection
-  try {
-    var res = await fetch(BRIDGE_URL + '/ping');
-    if (res.ok) {
-      var data = await res.json();
-      updateConnStatus('ok', data.dir ? data.dir.split('/').pop() : 'connected');
-    } else {
-      updateConnStatus('err', 'bridge error');
-    }
-  } catch(e) {
-    updateConnStatus('err', 'no bridge');
-    document.getElementById('main').innerHTML = '<div style="padding:20px;text-align:center;color:var(--red)">' +
-      '<h2 style="margin-bottom:10px">BRIDGE NOT RUNNING</h2>' +
-      '<p style="font-size:.8em;color:var(--grey)">Start bridge.py first:</p>' +
-      '<pre style="font-size:.7em;margin-top:10px;color:var(--primary)">python3 bridge.py ~/.local/share/tomogichi-qt/</pre>' +
-      '<p style="font-size:.7em;color:var(--grey);margin-top:10px">Then open http://localhost:9191/tomogichi.html</p>' +
-      '</div>';
-    return;
-  }
-  await loadState();
-  // Start polling for AI commands every 2 seconds
-  pollTimer = setInterval(pollCommands, 2000);
-  // Check lock state
-  checkLock();
-}
-
-// Start when page loads
-window.addEventListener('load', init);
-</script>
+<script src="tomogichi.js"></script>
 </body>
 </html>
