@@ -829,7 +829,90 @@ function loadPrompts() {
   return starters;
 }
 function savePrompts() {
+  // localStorage: store array only (backward compat with existing key)
   try { localStorage.setItem('teletraan-prompts', JSON.stringify(prompts)); } catch(e){}
+  // Bridge disk: store {currentId, prompts} wrapper so currentPromptId also survives restart
+  savePromptsToBridge();
+}
+// [PROMPT PERSISTENCE] Bridge disk sync — survives LibreWolf localStorage clearing.
+// File: teletraan-prompts.json = {"currentId": "...", "prompts": [...]}
+function savePromptsToBridge() {
+  try {
+    var serverUrl = (cfg.bridgeServer || 'http://localhost:9191').replace(/\/+$/, '');
+    var payload = JSON.stringify({currentId: currentPromptId, prompts: prompts});
+    fetch(serverUrl + '/write/teletraan-prompts.json', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: payload
+    }).catch(function(e) {
+      logError('Prompts save to bridge failed (bridge may not be running): ' + (e.message || e));
+    });
+  } catch(e) {
+    logError('savePromptsToBridge exception: ' + (e.message || e));
+  }
+}
+async function loadPromptsFromBridge() {
+  try {
+    var serverUrl = (cfg.bridgeServer || 'http://localhost:9191').replace(/\/+$/, '');
+    var res = await fetch(serverUrl + '/read/teletraan-prompts.json');
+    if (!res.ok) return null;
+    var text = await res.text();
+    return JSON.parse(text);
+  } catch(e) { return null; }
+}
+// [PROMPT PERSISTENCE] Sync prompts from bridge disk on startup.
+// Called during init. If localStorage was cleared by LibreWolf, restore from bridge.
+// If both exist, local wins (user's in-session edits). Always push back to bridge.
+async function syncPromptsWithBridge() {
+  var bridgeData = await loadPromptsFromBridge();
+  if (!bridgeData || !bridgeData.prompts) {
+    // No bridge data yet — push current local prompts so future loads have them
+    savePromptsToBridge();
+    return false;
+  }
+  var merged = false;
+  // If localStorage was cleared (we have STARTER_PROMPTS but bridge has user's custom prompts),
+  // restore from bridge. Heuristic: if local prompt count <= STARTER count AND all local IDs
+  // match STARTER IDs, local is likely fresh (not user-edited).
+  var localIsFreshStarters = prompts.length <= STARTER_PROMPTS.length &&
+    prompts.every(function(p) { return STARTER_PROMPTS.some(function(s) { return s.id === p.id; }); });
+  if (localIsFreshStarters && bridgeData.prompts.length > 0) {
+    // Apply migration to bridge data too (in case bridge has old content-only format)
+    for (var i = 0; i < bridgeData.prompts.length; i++) {
+      var p = bridgeData.prompts[i];
+      if (p.themePrompt === undefined && p.content !== undefined) {
+        var c = p.content;
+        var idx = c.indexOf('You are connected to the user');
+        if (idx > 0) {
+          p.themePrompt = c.substring(0, idx).replace(/\n+$/, '');
+          p.userPrompt = c.substring(idx);
+        } else {
+          p.themePrompt = c;
+          p.userPrompt = 'You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}';
+        }
+        p.themePrompt = p.themePrompt.replace(/Keep responses under 3 sentences unless asked for detail\.\s*/g, '');
+        delete p.content;
+      }
+    }
+    prompts = bridgeData.prompts;
+    merged = true;
+  }
+  // Restore currentPromptId from bridge if local is missing it
+  if (bridgeData.currentId && (!currentPromptId || !prompts.find(function(p) { return p.id === currentPromptId; }))) {
+    currentPromptId = bridgeData.currentId;
+    try { localStorage.setItem('teletraan-current-prompt', currentPromptId); } catch(e){}
+    merged = true;
+  }
+  if (merged) {
+    try { localStorage.setItem('teletraan-prompts', JSON.stringify(prompts)); } catch(e){}
+    syncCfgSystemPrompt();
+    renderPromptList();
+    populateConfigFields();
+    addMessage('system', 'Prompts restored from bridge disk.');
+  }
+  // Always push current back to bridge (keeps disk fresh)
+  savePromptsToBridge();
+  return merged;
 }
 function getActivePrompt() {
   return prompts.find(function(p){return p.id === currentPromptId;}) || prompts[0] || null;
@@ -3813,6 +3896,10 @@ function init() {
       if (!merged) {
         if (!cfg.apikey) addMessage('system','WARNING: No API key set. Get one at platform.deepseek.com/api_keys');
       }
+      // [PROMPT PERSISTENCE] After config sync (which may recover bridgeServer),
+      // sync prompts from bridge disk. This must come AFTER config sync so the
+      // bridge URL is settled before we try to fetch prompts.
+      syncPromptsWithBridge();
     });
 
     // [FIX] also try auto-connecting bridge on init — if start.sh already started bridge.py,
