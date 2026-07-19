@@ -12,10 +12,10 @@
 <div id="scanlines"></div>
 
 <!-- Corner glyphs — animated Cybertronian decoration -->
-<div class="corner-glyph tl">▲</div>
-<div class="corner-glyph tr">⬡</div>
-<div class="corner-glyph bl">◆</div>
-<div class="corner-glyph br">▼</div>
+<div class="corner-glyph tl" id="corner-tl">▲</div>
+<div class="corner-glyph tr" id="corner-tr">⬡</div>
+<div class="corner-glyph bl" id="corner-bl">◆</div>
+<div class="corner-glyph br" id="corner-br">▼</div>
 
 <div id="boot-screen">
   <div class="glyph" id="boot-glyph">▲ TELETRAAN-1 ▲</div>
@@ -47,7 +47,7 @@
 
     <!-- Energons meter — LLM latency as horizontal bar (green/amber/red) -->
     <div class="energon-meter">
-      <div class="energon-label">ENERGON <span id="energon-value">--</span></div>
+      <div class="energon-label"><span id="energon-label-text">ENERGON</span> <span id="energon-value">--</span></div>
       <div class="energon-bar"><div class="energon-fill" id="energon-fill"></div></div>
     </div>
 

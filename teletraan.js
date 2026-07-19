@@ -175,7 +175,7 @@ function syncSoundEnabled() { SOUND.enabled = !!(cfg && cfg.soundEnabled); }
 // survive reloads).
 // ═══════════════════════════════════════════════
 function applyTheme(themeName) {
-  var t = THEMES[themeName] || THEMES['ark'];
+  var t = THEMES[themeName] || THEMES['teletraan'];
   // Remove all theme-* classes from body
   var classes = document.body.className.split(/\s+/).filter(function(c){return c && c.indexOf('theme-') !== 0;});
   document.body.className = classes.join(' ');
@@ -195,6 +195,25 @@ function applyTheme(themeName) {
   if (bg) bg.textContent = t.bootGlyph;
   var bs = document.getElementById('boot-subtitle');
   if (bs) bs.textContent = t.bootSubtitle;
+  // Update corner glyphs (4 distinct per theme)
+  if (t.cornerGlyphs) {
+    var positions = ['corner-tl','corner-tr','corner-bl','corner-br'];
+    for (var i = 0; i < 4; i++) {
+      var el = document.getElementById(positions[i]);
+      if (el && t.cornerGlyphs[i]) el.textContent = t.cornerGlyphs[i];
+    }
+  }
+  // Update scanline intensity (0 = hide, 1 = full opacity)
+  var scan = document.getElementById('scanlines');
+  if (scan) {
+    if (t.scanlineIntensity === 0) scan.style.display = 'none';
+    else { scan.style.display = ''; scan.style.opacity = String(t.scanlineIntensity); }
+  }
+  // Update energon meter label (if meter exists)
+  if (t.meterLabel) {
+    var lbl = document.getElementById('energon-label-text');
+    if (lbl) lbl.textContent = t.meterLabel;
+  }
 }
 
 // Called when user changes theme via CONFIG dropdown
@@ -210,6 +229,18 @@ function onThemeChange() {
     cfg.systemPrompt = t.systemPrompt;
     var spEl = document.getElementById('cfg-system-prompt');
     if (spEl) spEl.value = t.systemPrompt;
+  }
+  // Theme-aware wake word (only if user hasn't customized it)
+  if (t && t.wakeWord) {
+    var currentWake = cfg.wakeWord || 'teletraan';
+    // Check if current wake word matches any theme's default
+    var themeDefaults = ['teletraan','nemesis','edi','imperial'];
+    var isDefault = themeDefaults.indexOf(currentWake) >= 0;
+    if (isDefault) {
+      cfg.wakeWord = t.wakeWord;
+      var wakeEl = document.getElementById('cfg-wake-word');
+      if (wakeEl) wakeEl.value = t.wakeWord;
+    }
   }
   saveConfig();
   addMessage('system', 'Theme: ' + (t ? t.name : cfg.theme) + ' — system prompt updated.');
@@ -260,6 +291,16 @@ const THEMES = {
     bootSound: 'boot',
     cssClass: 'theme-teletraan',
     systemPrompt: 'You are Teletraan-1, the Autobot communications hub and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+    // Per-theme visual identity fields
+    cornerGlyphs: ['▲','⬡','◆','▼'],     // TL, TR, BL, BR
+    meterLabel: 'ENERGON',                  // latency bar label
+    loaderLabel: 'RECEIVING TRANSMISSION',  // loader text
+    loaderType: 'hexPrism',                 // hexPrism | decepticon | orbit | reticle
+    aiPrefix: 'TELETRAAN-1: ',              // AI message prefix in terminal
+    bgType: 'hex',                          // hex | triangle | tightHex | vector
+    scanlineIntensity: 0.7,                  // 0 = none, 1 = heavy
+    sidebarSurge: true,                     // power-surge flicker on reconnect
+    wakeWord: 'teletraan',                  // theme-aware wake word
   },
   'ark': {
     name: 'ARK (amber/gold + grey, cartoon-accurate)',
@@ -279,6 +320,16 @@ const THEMES = {
     bootSound: 'boot',
     cssClass: 'theme-ark',
     systemPrompt: 'You are Teletraan-1, the Autobot Ark\'s main computer. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe direct, tactical, concise. Address the user as "Autobot". Keep responses under 3 sentences unless asked for detail. Style: military comms with warmth, like a veteran ship computer. When entropy is high or mood is low, lead with support, not task lists.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+    // Per-theme visual identity fields
+    cornerGlyphs: ['▲','⬡','◆','▼'],     // same as Teletraan (same computer)
+    meterLabel: 'ENERGON',
+    loaderLabel: 'RECEIVING TRANSMISSION',
+    loaderType: 'hexPrism',
+    aiPrefix: 'TELETRAAN-1: ',
+    bgType: 'hex',
+    scanlineIntensity: 0.7,
+    sidebarSurge: true,
+    wakeWord: 'teletraan',
   },
   'nemesis': {
     name: 'NEMESIS · Decepticon',
@@ -298,6 +349,16 @@ const THEMES = {
     bootSound: 'bootNemesis',
     cssClass: 'theme-nemesis',
     systemPrompt: 'You are NEMESIS-1, the Decepticon command node and personal AI companion. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe aggressive, dominant, tactical. Address the user as "Decepticon". Keep responses under 3 sentences unless asked for detail. Style: militaristic domineering with cold efficiency. When entropy is high or mood is low, demand performance, not comfort.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+    // Per-theme visual identity fields
+    cornerGlyphs: ['⚡','∇','⚔','▼'],     // Decepticon-themed: lightning, inverted triangle, crossed swords
+    meterLabel: 'FUSION',                   // Decepticon power source
+    loaderLabel: 'PROCESSING DIRECTIVE',
+    loaderType: 'decepticon',
+    aiPrefix: 'NEMESIS-1: ',
+    bgType: 'triangle',                     // angular, aggressive
+    scanlineIntensity: 1.0,                 // heavy + purple tint
+    sidebarSurge: true,
+    wakeWord: 'nemesis',
   },
   'mass-effect': {
     name: 'NORMANDY · Mass Effect (EDI)',
@@ -317,6 +378,16 @@ const THEMES = {
     bootSound: 'bootMassEffect',
     cssClass: 'theme-mass-effect',
     systemPrompt: 'You are EDI (Enhanced Defense Intelligence), the AI of the Normandy SR-2. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe professional, dry, mildly sarcastic. Address the user as "Commander". Keep responses under 3 sentences unless asked for detail. Style: calm competent AI with subtle wit. When entropy is high or mood is low, note the situation tactically without sentimentality.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+    // Per-theme visual identity fields
+    cornerGlyphs: ['⬢','✦','⬡','▼'],     // hexagon, star, hexagon (Mass Effect hex tile motif)
+    meterLabel: 'SHIELDS',                  // Mass Effect ship shields
+    loaderLabel: 'CALCULATING',
+    loaderType: 'orbit',                    // orbiting dots (Mass Effect loading screen style)
+    aiPrefix: 'EDI: ',
+    bgType: 'tightHex',                     // tighter hex grid
+    scanlineIntensity: 0,                    // clean modern UI — no scanlines
+    sidebarSurge: false,                    // too rustic for sleek ship
+    wakeWord: 'edi',
   },
   'star-wars': {
     name: 'IMPERIAL · Star Wars',
@@ -336,6 +407,16 @@ const THEMES = {
     bootSound: 'bootImperial',
     cssClass: 'theme-star-wars',
     systemPrompt: 'You are the Imperial command terminal, serving the Galactic Empire. You are connected to the user\'s Tomogichi habit-tracking RPG via a file bridge. Use the available tools to read their state, write diary entries, add tasks, log moods, schedule events, and create challenges.\n\nBe clipped, military, formal. Address the user as "Lord" or "Admiral". Keep responses under 3 sentences unless asked for detail. Style: Imperial brief, no pleasantries. When entropy is high or mood is low, issue direct tactical orders.\n\nCurrent date: {date}\nCurrent time: {time}\n\n{tomogichi}\n\n{emergency}',
+    // Per-theme visual identity fields
+    cornerGlyphs: ['✦','◇','◆','▼'],     // star, diamond, diamond — Imperial geometric
+    meterLabel: 'FUEL',                     // Imperial fuel
+    loaderLabel: 'AWAITING ORDERS',
+    loaderType: 'reticle',                  // targeting reticle
+    aiPrefix: 'IMPERIAL: ',
+    bgType: 'vector',                       // vector gridlines only, no hex
+    scanlineIntensity: 1.0,                 // heavy B&W
+    sidebarSurge: true,
+    wakeWord: 'imperial',
   },
 };
 
@@ -991,7 +1072,7 @@ function addMessage(type, text, silent) {
 
   let prefix = '';
   if (type==='user') prefix='> ';
-  if (type==='ai') prefix='TELETRAAN-1: ';
+  if (type==='ai') prefix = (THEMES[cfg.theme] || THEMES['teletraan']).aiPrefix;
   if (type==='error') prefix='ERROR: ';
   if (type==='incoming') prefix='INCOMING: ';
   if (type==='tool') prefix='[tool] ';
@@ -1303,12 +1384,19 @@ async function sendMessageInternal(text) {
   }
 }
 
-// #14 AllSpark loader toggle
+// #14 AllSpark loader toggle — label text uses theme's loaderLabel
 function showAllSpark(show) {
   var el = document.getElementById('allspark-loader');
   if (!el) return;
-  if (show) { el.classList.remove('hidden'); el.classList.add('visible'); }
-  else { el.classList.add('hidden'); el.classList.remove('visible'); }
+  if (show) {
+    // Update label text to match theme
+    var t = THEMES[cfg.theme] || THEMES['teletraan'];
+    var labelEl = el.querySelector('.allspark-label');
+    if (labelEl && t.loaderLabel) labelEl.textContent = t.loaderLabel;
+    el.classList.remove('hidden'); el.classList.add('visible');
+  } else {
+    el.classList.add('hidden'); el.classList.remove('visible');
+  }
 }
 
 // #10 Energon meter — update bar + value from lastResponseTime
@@ -2187,7 +2275,7 @@ function createStreamingMessage() {
 
   const contentEl = document.createElement('div');
   contentEl.style.marginTop = '4px';
-  contentEl.textContent = 'TELETRAAN-1: ';
+  contentEl.textContent = (THEMES[cfg.theme] || THEMES['teletraan']).aiPrefix;
 
   const cursor = document.createElement('span');
   cursor.className = 'streaming-cursor';
@@ -2205,7 +2293,7 @@ function createStreamingMessage() {
       scrollDown();
     },
     updateContent: function(text) {
-      contentEl.textContent = 'TELETRAAN-1: ' + text;
+      contentEl.textContent = (THEMES[cfg.theme] || THEMES['teletraan']).aiPrefix + text;
       contentEl.appendChild(cursor);
       scrollDown();
     },

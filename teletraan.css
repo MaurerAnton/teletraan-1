@@ -432,3 +432,27 @@ body.theme-star-wars .msg-ai{color:#f0f0f0;text-shadow:0 0 4px #f0f0f0}
 body.theme-star-wars .msg-user{color:#4a9eff;text-shadow:0 0 4px #4a9eff}
 body.theme-star-wars .btn-side{color:#f0f0f0;border-color:#2a2a2a}
 body.theme-star-wars .btn-side:hover{border-color:#ff2020;box-shadow:0 0 12px #ff2020;color:#ff2020}
+
+/* ═══════════════════════════════════════════════
+   PER-THEME SCANLINE INTENSITY + SIDEBAR SURGE
+   Teletraan/Ark: medium CRT scanlines + surge yes
+   Nemesis: heavy purple-tinted scanlines + red surge
+   Normandy: NO scanlines (clean modern UI) + NO surge
+   Imperial: heavy B&W scanlines + surge yes
+   ═══════════════════════════════════════════════ */
+body.theme-teletraan #scanlines{opacity:.7}
+body.theme-ark #scanlines{opacity:.7}
+body.theme-nemesis #scanlines{opacity:1;
+  background:repeating-linear-gradient(to bottom,
+    rgba(0,0,0,0) 0px,rgba(0,0,0,0) 2px,
+    rgba(60,0,80,.08) 3px,rgba(0,0,0,0) 4px)}
+body.theme-mass-effect #scanlines{display:none}
+body.theme-star-wars #scanlines{opacity:.95}
+
+/* sidebarSurge behavior — only themes with sidebarSurge:true get the animation */
+body.theme-mass-effect .sidebar-surge{animation:none}  /* Normandy too sleek for surges */
+/* Nemesis gets a red-tinted surge */
+body.theme-nemesis .sidebar-surge{animation:flickerSurgeRed .35s ease-out 1}
+@keyframes flickerSurgeRed{
+  0%{opacity:1;filter:none}25%{opacity:.7;filter:hue-rotate(0)}50%{opacity:1}
+  75%{opacity:.85;filter:hue-rotate(0)}100%{opacity:1}}
