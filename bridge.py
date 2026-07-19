@@ -83,17 +83,18 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        # Serve static files (teletraan.html, teletraan.css, teletraan.js) at / and /<name>
-        # This allows opening http://localhost:9191 in browser, which is needed
-        # for getUserMedia (microphone) — file:// doesn't allow mic access in Firefox
-        STATIC_FILES = ('/', '/teletraan.html', '/index.html',
-                        '/teletraan.css', '/teletraan.js')
-        if path in STATIC_FILES:
-            # Map URL → filename
-            if path == '/' or path == '/index.html':
-                fname = 'teletraan.html'
-            else:
-                fname = path.lstrip('/')
+        # Serve static files (.html, .css, .js) from script directory or base_dir.
+        # This allows opening http://localhost:9191/tomogichi.html (or any other
+        # .html/.css/.js file) in browser. Needed for getUserMedia (mic access)
+        # which requires http(s):// origin, not file://
+        if path == '/' or path == '/index.html':
+            fname = 'teletraan.html'
+        elif path.endswith(('.html', '.css', '.js')) and '/' not in path.lstrip('/'):
+            fname = path.lstrip('/')
+        else:
+            fname = None  # not a static file request
+
+        if fname:
             # Try base_dir first, then sibling to script dir (when bridge.py is in repo root)
             fpath = self.base_dir / fname
             if not fpath.exists():
