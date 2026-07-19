@@ -132,16 +132,18 @@ if [ "$START_TTS" = true ]; then
         # Pass --data-dir so Piper knows where to find additional voices
         "$PIPER_VENV/bin/python3" -m piper.http_server -m "$PIPER_VOICE" --data-dir "$PIPER_VOICES_DIR" >/tmp/piper.log 2>&1 &
         PIDS+=($!)
-        # Wait for Piper to be ready
-        for i in {1..15}; do
-          if curl -s --max-time 1 http://localhost:5000/info >/dev/null 2>&1; then
+        # Wait for Piper to be ready (model loading on ARM can take 20+ seconds)
+        echo -e "${BLUE}[piper]  Waiting for model to load (can take 20s on ARM)...${NC}"
+        for i in {1..30}; do
+          if curl -s --max-time 5 http://localhost:5000/info >/dev/null 2>&1; then
             echo -e "${GREEN}[piper]  Ready on http://localhost:5000${NC}"
             break
           fi
           sleep 1
         done
-        if ! curl -s --max-time 1 http://localhost:5000/info >/dev/null 2>&1; then
-          echo -e "${RED}[piper]  Failed to start (check /tmp/piper.log)${NC}"
+        if ! curl -s --max-time 5 http://localhost:5000/info >/dev/null 2>&1; then
+          echo -e "${RED}[piper]  Not responding after 30s (check /tmp/piper.log)${NC}"
+          echo -e "${YELLOW}        Piper may still be loading — check: curl http://localhost:5000/info${NC}"
           START_TTS=false
         fi
       fi
