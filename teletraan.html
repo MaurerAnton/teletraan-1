@@ -602,7 +602,35 @@ function autoGenerateTitle(conv) {
     renderConversationList();
   }
 }
-function saveConfig() { localStorage.setItem('teletraan-config', JSON.stringify(cfg)); }
+function saveConfig() {
+  try { localStorage.setItem('teletraan-config', JSON.stringify(cfg)); } catch(e){}
+  // Also save to bridge server (survives browser restarts — LibreWolf may clear localStorage)
+  saveConfigToBridge();
+}
+
+// Save config to bridge.py /config endpoint (persistent file on disk)
+function saveConfigToBridge() {
+  if (bridgeMode !== 'server') return;  // only works when bridge is connected
+  try {
+    var serverUrl = (cfg.bridgeServer || 'http://localhost:9191').replace(/\/+$/, '');
+    fetch(serverUrl + '/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(cfg)
+    }).catch(function(e) {});  // silent fail — localStorage is the primary store
+  } catch(e) {}
+}
+
+// Load config from bridge.py /config endpoint (fallback if localStorage is empty)
+async function loadConfigFromBridge() {
+  if (bridgeMode !== 'server') return null;
+  try {
+    var serverUrl = (cfg.bridgeServer || 'http://localhost:9191').replace(/\/+$/, '');
+    var res = await fetch(serverUrl + '/config');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch(e) { return null; }
+}
 
 // Persistence helpers
 function loadConversation() {
@@ -677,11 +705,11 @@ function applyConfig() {
   cfg.weatherLat = document.getElementById('cfg-weather-lat').value.trim() || DEFAULTS.weatherLat;
   cfg.weatherLon = document.getElementById('cfg-weather-lon').value.trim() || DEFAULTS.weatherLon;
   cfg.weatherCity = document.getElementById('cfg-weather-city').value.trim() || DEFAULTS.weatherCity;
-  saveConfig();
+  saveConfig();  // saves to localStorage AND bridge /config file
   updateStatus();
   updateProtocols();
   toggleConfig();
-  addMessage('system','Configuration applied.');
+  addMessage('system','Configuration applied. Saved to localStorage + bridge file.');
 }
 
 function resetConfig() { cfg = {...DEFAULTS}; saveConfig(); populateConfigFields(); updateStatus(); updateProtocols(); addMessage('system','Configuration reset to defaults.'); }
@@ -2447,7 +2475,22 @@ function init() {
     addMessage('system','Tomogichi bridge: Use CONFIG → SELECT to connect.');
     addMessage('system','Type a message to begin, Ctrl+B for morning brief.');
 
-    if (!cfg.apikey && cfg.endpoint.includes('deepseek.com')) addMessage('system','WARNING: No API key set. Get one at platform.deepseek.com/api_keys');
+    if (!cfg.apikey && cfg.endpoint.includes('deepseek.com')) {
+      // API key missing from localStorage — try loading from bridge config file
+      // (LibreWolf may have cleared localStorage on restart)
+      loadConfigFromBridge().then(function(bridgeCfg) {
+        if (bridgeCfg && bridgeCfg.apikey) {
+          cfg = Object.assign(cfg, bridgeCfg);
+          try { localStorage.setItem('teletraan-config', JSON.stringify(cfg)); } catch(e){}
+          populateConfigFields();
+          updateStatus();
+          updateProtocols();
+          addMessage('system', 'Config restored from bridge file (API key recovered).');
+        } else {
+          addMessage('system','WARNING: No API key set. Get one at platform.deepseek.com/api_keys');
+        }
+      });
+    }
     if (!cfg.model) addMessage('system','WARNING: No model configured. Set in CONFIG.');
     if (!hasFSA()) addMessage('system','Firefox: run "python3 bridge.py ~/.local/share/tomogichi-qt/" in a terminal first.');
 

@@ -17,6 +17,8 @@ Endpoints:
     GET  /exists/<filename>  — check if file exists, returns {"exists":true/false}
     GET  /files              — list bridge files with sizes
     POST /tts                — proxy TTS (body = {"text":"..."}), returns audio bytes
+    GET  /config             — read persistent config (teletraan-config.json)
+    POST /config             — save persistent config (body = JSON)
 
 Auth (optional):
     If --token is set, client must send "Authorization: Bearer <token>" header.
@@ -95,6 +97,23 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         if path == "/files":
             self.send_cors(200, "application/json")
             self.wfile.write(json.dumps({"files": self._list_files()}).encode())
+            return
+
+        if path == "/config":
+            # Read persistent config from teletraan-config.json in the bridge dir
+            # This survives browser restarts (localStorage may be cleared by LibreWolf)
+            config_path = self.base_dir / "teletraan-config.json"
+            if config_path.exists():
+                try:
+                    config_data = json.loads(config_path.read_text())
+                    self.send_cors(200, "application/json")
+                    self.wfile.write(json.dumps(config_data).encode())
+                except Exception as e:
+                    self.send_cors(500, "application/json")
+                    self.wfile.write(json.dumps({"error": f"Config parse error: {e}"}).encode())
+            else:
+                self.send_cors(404, "application/json")
+                self.wfile.write(json.dumps({"error": "No config file yet"}).encode())
             return
 
         if path.startswith("/read/"):
@@ -200,6 +219,25 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self.send_cors(500, "application/json")
                 self.wfile.write(json.dumps({"error": f"TTS proxy failed: {e}"}).encode())
+            return
+
+        if path == "/config":
+            # Save persistent config to teletraan-config.json in the bridge dir
+            # Survives browser restarts — localStorage may be cleared by LibreWolf privacy settings
+            config_path = self.base_dir / "teletraan-config.json"
+            try:
+                # Parse to validate JSON, then write prettified
+                config_data = json.loads(body)
+                config_path.write_text(json.dumps(config_data, indent=2))
+                self.send_cors(200, "application/json")
+                self.wfile.write(json.dumps({"ok": True, "saved": True}).encode())
+                print(f"[bridge] config saved to {config_path.name}", file=sys.stderr)
+            except json.JSONDecodeError as e:
+                self.send_cors(400, "application/json")
+                self.wfile.write(json.dumps({"error": f"Invalid JSON: {e}"}).encode())
+            except Exception as e:
+                self.send_cors(500, "application/json")
+                self.wfile.write(json.dumps({"error": f"Config save failed: {e}"}).encode())
             return
 
         if path.startswith("/write/"):
