@@ -82,46 +82,55 @@ if [ "$START_TTS" = true ]; then
     else
       echo -e "${BLUE}[piper]  Starting Piper TTS server...${NC}"
 
-      # Find the voice model (.onnx file) — Piper's -m flag needs either:
-      # 1. Voice name (searches in --data-dir, default ~/.local/share/piper)
-      # 2. Full path to .onnx file (more reliable)
+      # Piper downloads voices to cwd by default — use a fixed directory
+      # so we always know where to find them
+      PIPER_VOICES_DIR="$HOME/piper-voices"
+      mkdir -p "$PIPER_VOICES_DIR"
+
+      # Find the voice model (.onnx file)
+      # Search: fixed voices dir, home dir, script dir (voice may have been downloaded elsewhere)
       PIPER_VOICE=""
       for search_dir in \
-        "$HOME/.local/share/piper/voices" \
+        "$PIPER_VOICES_DIR" \
+        "$HOME" \
+        "$SCRIPT_DIR" \
         "$HOME/.local/share/piper" \
-        "$HOME/piper-venv/voices" \
-        "$HOME/vosk-models"; do
+        "$HOME/.local/share/piper/voices"; do
         if [ -d "$search_dir" ]; then
-          # Look for the .onnx file (Piper voice)
-          ONNX_FILE=$(find "$search_dir" -name "en_US-lessac-medium*.onnx" -not -name "*.onnx.json" 2>/dev/null | head -1)
+          ONNX_FILE=$(find "$search_dir" -maxdepth 2 -name "en_US-lessac-medium*.onnx" -not -name "*.onnx.json" 2>/dev/null | head -1)
           if [ -n "$ONNX_FILE" ]; then
             PIPER_VOICE="$ONNX_FILE"
+            # Copy to fixed voices dir if found elsewhere
+            if [ "$(dirname "$ONNX_FILE")" != "$PIPER_VOICES_DIR" ]; then
+              echo -e "${BLUE}[piper]  Copying voice to $PIPER_VOICES_DIR/${NC}"
+              cp "$ONNX_FILE" "$PIPER_VOICES_DIR/" 2>/dev/null || true
+              # Also copy the .onnx.json config file
+              cp "${ONNX_FILE}.json" "$PIPER_VOICES_DIR/" 2>/dev/null || true
+            fi
             break
           fi
         fi
       done
 
       if [ -z "$PIPER_VOICE" ]; then
-        echo -e "${YELLOW}[piper]  Voice model not found. Downloading en_US-lessac-medium...${NC}"
-        "$PIPER_VENV/bin/python3" -m piper.download_voices en_US-lessac-medium 2>/tmp/piper-download.log
+        echo -e "${YELLOW}[piper]  Voice model not found. Downloading to $PIPER_VOICES_DIR/...${NC}"
+        "$PIPER_VENV/bin/python3" -m piper.download_voices en_US-lessac-medium --download-dir "$PIPER_VOICES_DIR" 2>/tmp/piper-download.log
         # Try again after download
-        for search_dir in "$HOME/.local/share/piper/voices" "$HOME/.local/share/piper"; do
-          ONNX_FILE=$(find "$search_dir" -name "en_US-lessac-medium*.onnx" -not -name "*.onnx.json" 2>/dev/null | head -1)
-          if [ -n "$ONNX_FILE" ]; then
-            PIPER_VOICE="$ONNX_FILE"
-            break
-          fi
-        done
+        ONNX_FILE="$PIPER_VOICES_DIR/en_US-lessac-medium.onnx"
+        if [ -f "$ONNX_FILE" ]; then
+          PIPER_VOICE="$ONNX_FILE"
+        fi
       fi
 
       if [ -z "$PIPER_VOICE" ]; then
         echo -e "${RED}[piper]  Voice model not found anywhere.${NC}"
-        echo -e "${YELLOW}        Try: $PIPER_VENV/bin/python3 -m piper.download_voices en_US-lessac-medium${NC}"
-        echo -e "${YELLOW}        Then check: find ~ -name '*.onnx' -path '*piper*'${NC}"
+        echo -e "${YELLOW}        Run manually:${NC}"
+        echo -e "${YELLOW}        $PIPER_VENV/bin/python3 -m piper.download_voices en_US-lessac-medium --download-dir $PIPER_VOICES_DIR${NC}"
         START_TTS=false
       else
         echo -e "${BLUE}[piper]  Using voice: $PIPER_VOICE${NC}"
-        "$PIPER_VENV/bin/python3" -m piper.http_server -m "$PIPER_VOICE" >/tmp/piper.log 2>&1 &
+        # Pass --data-dir so Piper knows where to find additional voices
+        "$PIPER_VENV/bin/python3" -m piper.http_server -m "$PIPER_VOICE" --data-dir "$PIPER_VOICES_DIR" >/tmp/piper.log 2>&1 &
         PIDS+=($!)
         # Wait for Piper to be ready
         for i in {1..15}; do
