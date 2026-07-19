@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Teletraan-1
+Comment=Agora Desktop Web Bridge — Tomogichi AI companion
+Exec=/home/alarm/teletraan-1/start.sh
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Utility;Office;
+StartupNotify=true

@@ -83,6 +83,28 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
+        # Serve teletraan.html at / and /teletraan.html
+        # This allows opening http://localhost:9191 in browser, which is needed
+        # for getUserMedia (microphone) — file:// doesn't allow mic access in Firefox
+        if path == "/" or path == "/teletraan.html" or path == "/index.html":
+            html_path = self.base_dir / "teletraan.html"
+            # Also try sibling to script dir (when bridge.py is in repo root)
+            if not html_path.exists():
+                html_path = Path(__file__).parent / "teletraan.html"
+            if html_path.exists():
+                content = html_path.read_bytes()
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            else:
+                self.send_cors(404, "application/json")
+                self.wfile.write(json.dumps({"error": "teletraan.html not found. Place it next to bridge.py or in the data dir."}).encode())
+                return
+
         if path == "/ping":
             self.send_cors(200, "application/json")
             self.wfile.write(json.dumps({
