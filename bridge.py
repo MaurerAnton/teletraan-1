@@ -83,26 +83,42 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        # Serve teletraan.html at / and /teletraan.html
+        # Serve static files (teletraan.html, teletraan.css, teletraan.js) at / and /<name>
         # This allows opening http://localhost:9191 in browser, which is needed
         # for getUserMedia (microphone) — file:// doesn't allow mic access in Firefox
-        if path == "/" or path == "/teletraan.html" or path == "/index.html":
-            html_path = self.base_dir / "teletraan.html"
-            # Also try sibling to script dir (when bridge.py is in repo root)
-            if not html_path.exists():
-                html_path = Path(__file__).parent / "teletraan.html"
-            if html_path.exists():
-                content = html_path.read_bytes()
+        STATIC_FILES = ('/', '/teletraan.html', '/index.html',
+                        '/teletraan.css', '/teletraan.js')
+        if path in STATIC_FILES:
+            # Map URL → filename
+            if path == '/' or path == '/index.html':
+                fname = 'teletraan.html'
+            else:
+                fname = path.lstrip('/')
+            # Try base_dir first, then sibling to script dir (when bridge.py is in repo root)
+            fpath = self.base_dir / fname
+            if not fpath.exists():
+                fpath = Path(__file__).parent / fname
+            if fpath.exists():
+                content = fpath.read_bytes()
+                # Set content type based on extension
+                if fname.endswith('.html'):
+                    ct = 'text/html; charset=utf-8'
+                elif fname.endswith('.css'):
+                    ct = 'text/css; charset=utf-8'
+                elif fname.endswith('.js'):
+                    ct = 'application/javascript; charset=utf-8'
+                else:
+                    ct = 'application/octet-stream'
                 self.send_response(200)
                 self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Type", ct)
                 self.send_header("Content-Length", str(len(content)))
                 self.end_headers()
                 self.wfile.write(content)
                 return
             else:
                 self.send_cors(404, "application/json")
-                self.wfile.write(json.dumps({"error": "teletraan.html not found. Place it next to bridge.py or in the data dir."}).encode())
+                self.wfile.write(json.dumps({"error": fname + " not found. Place it next to bridge.py or in the data dir."}).encode())
                 return
 
         if path == "/ping":
