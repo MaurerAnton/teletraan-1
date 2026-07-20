@@ -407,6 +407,18 @@ html,body{height:100vh;height:100dvh;overflow:hidden;margin:0;padding:0;
 /* Onboarding */
 .onboarding p{font-size:.75em;color:var(--txt-dim);line-height:1.5;margin-bottom:8px}
 
+/* ── Mood calendar heatmap ── */
+.mood-calendar{margin-bottom:8px;overflow-x:auto}
+.mc-grid{display:flex;flex-direction:column;gap:2px;min-width:300px}
+.mc-labels{display:flex;gap:3px;padding-left:0}
+.mc-month-label{width:23px;text-align:center;font-size:.65em;color:var(--txt-dim);letter-spacing:1px}
+.mc-row{display:flex;gap:3px}
+.mc-cell{width:20px;height:20px;border-radius:3px;flex-shrink:0;transition:transform .1s}
+.mc-cell:hover{transform:scale(1.3);z-index:1}
+.mc-empty{background:transparent}
+.mc-cell[title]{cursor:default}
+.mood-calendar-legend{display:flex;gap:6px;justify-content:center;margin-bottom:10px;font-size:.75em}
+
 /* Responsive */
 @media(max-width:600px){
   .money-overview{grid-template-columns:1fr}

@@ -1364,6 +1364,16 @@ function renderSettings() {
       var emoji = (MOOD_WORDS.find(function(mw) { return mw.word === m.word; }) || {}).emoji || '';
       return '<div style="font-size:.85em;padding:2px 0">' + (m.time || '').substring(0, 16).replace('T', ' ') + ' ' + emoji + ' ' + m.word + '</div>';
     }).join('');
+    // Year Mood Calendar
+    moodHtml += '<div class="section-title">Year in Color <button class="shop-buy" onclick="downloadPoster()" style="margin-left:auto;font-size:.7em">📥 Download Poster</button></div>';
+    moodHtml += '<div class="mood-calendar" id="mood-calendar"></div>';
+    moodHtml += '<div class="mood-calendar-legend">';
+    var moodColorScale = {1:'#EF5350',2:'#FF9800',3:'#FFC107',4:'#4CAF50',5:'#00E5FF'};
+    var moodToNum = {happy:4,sad:1,tired:2,energetic:5,anxious:2,calm:4,focused:5,distracted:2,motivated:5,lazy:1,creative:5,blocked:1,grateful:4,frustrated:1,peaceful:4,restless:2,excited:5,bored:2,hopeful:4,drained:1,curious:4,overwhelmed:1,content:4,proud:5,lonely:1};
+    for (var lv = 1; lv <= 5; lv++) {
+      moodHtml += '<span class="hm-cell level-' + lv + '" style="width:14px;height:14px;font-size:.6em;background:' + moodColorScale[lv] + '">' + lv + '</span>';
+    }
+    moodHtml += '</div>';
     // Diary
     moodHtml += '<div class="section-title">Diary</div>';
     var diary = state.master.diary_log || [];
@@ -1375,6 +1385,8 @@ function renderSettings() {
     moodHtml += '<textarea id="diary-input" placeholder="What happened today?" style="background:var(--bg);color:var(--txt);border:1px solid var(--border);border-radius:6px;padding:8px;width:100%;min-height:60px;font-family:inherit;font-size:.8em;margin-top:4px"></textarea>' +
       '<button class="shop-buy" onclick="addDiary()">Save Entry</button>';
     el.innerHTML = moodHtml;
+    // Render the calendar after DOM is ready
+    setTimeout(renderMoodCalendar, 0);
   } else if (activeSettingsTab === 'archive') {
     var html = '';
     for (var pi = 0; pi < state.persons.length; pi++) {
@@ -1943,6 +1955,129 @@ function manualRefresh() {
   }).catch(function(e) {
     showToast('Refresh failed: ' + (e.message || e));
   });
+}
+
+// ── Mood calendar heatmap + poster export ──
+var MOOD_COLOR_SCALE = {1:'#EF5350',2:'#FF9800',3:'#FFC107',4:'#4CAF50',5:'#00E5FF'};
+var MOOD_TO_NUM = {happy:4,sad:1,tired:2,energetic:5,anxious:2,calm:4,focused:5,distracted:2,motivated:5,lazy:1,creative:5,blocked:1,grateful:4,frustrated:1,peaceful:4,restless:2,excited:5,bored:2,hopeful:4,drained:1,curious:4,overwhelmed:1,content:4,proud:5,lonely:1};
+var MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
+
+function renderMoodCalendar() {
+  var calEl = document.getElementById('mood-calendar');
+  if (!calEl) return;
+  var now = new Date();
+  var year = now.getFullYear();
+  // Build mood-by-date map
+  var moodByDate = {};
+  var moods = state.master.mood_log || [];
+  for (var i = 0; i < moods.length; i++) {
+    var d = (moods[i].time || '').substring(0, 10);
+    var num = MOOD_TO_NUM[moods[i].word] || 3;
+    // Keep latest mood per day
+    if (!moodByDate[d] || new Date(moods[i].time) > new Date(moodByDate[d].time)) {
+      moodByDate[d] = {num: num, time: moods[i].time};
+    }
+  }
+  // Render 12 month columns, 31 rows
+  var html = '<div class="mc-grid">';
+  // Month labels
+  html += '<div class="mc-labels">';
+  for (var m = 0; m < 12; m++) {
+    html += '<div class="mc-month-label">' + MONTHS_SHORT[m] + '</div>';
+  }
+  html += '</div>';
+  // Day rows
+  for (var day = 1; day <= 31; day++) {
+    html += '<div class="mc-row">';
+    for (var m = 0; m < 12; m++) {
+      if (day <= DAYS_IN_MONTH[m]) {
+        var iso = year + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+        var entry = moodByDate[iso];
+        var color = entry ? (MOOD_COLOR_SCALE[entry.num] || '#333') : 'rgba(128,128,128,.08)';
+        var emoji = entry ? (MOOD_WORDS.find(function(w){return MOOD_TO_NUM[w.word]===entry.num})||{}).emoji||'' : '';
+        html += '<div class="mc-cell" style="background:' + color + '" title="' + iso + (emoji ? ' ' + emoji : '') + '"></div>';
+      } else {
+        html += '<div class="mc-cell mc-empty"></div>';
+      }
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  calEl.innerHTML = html;
+}
+
+function downloadPoster() {
+  var now = new Date();
+  var year = now.getFullYear();
+  // Build mood map
+  var moodByDate = {};
+  var moods = state.master.mood_log || [];
+  for (var i = 0; i < moods.length; i++) {
+    var d = (moods[i].time || '').substring(0, 10);
+    var num = MOOD_TO_NUM[moods[i].word] || 3;
+    if (!moodByDate[d] || new Date(moods[i].time) > new Date(moodByDate[d].time)) {
+      moodByDate[d] = {num: num, word: moods[i].word};
+    }
+  }
+  // Canvas
+  var cellW = 20, cellH = 20, gap = 3, padX = 50, padY = 50;
+  var cCanvas = document.createElement('canvas');
+  cCanvas.width = padX + 12 * (cellW + gap) + 20;
+  cCanvas.height = padY + 31 * (cellH + gap) + 60;
+  var c = cCanvas.getContext('2d');
+  // Background
+  c.fillStyle = '#0a0a1a';
+  c.fillRect(0, 0, cCanvas.width, cCanvas.height);
+  // Title
+  c.fillStyle = '#00E5FF';
+  c.font = 'bold 14px Courier New, monospace';
+  c.textAlign = 'center';
+  c.fillText('My ' + year + ' — A Year in Color', cCanvas.width / 2, 24);
+  c.font = '10px Courier New, monospace';
+  c.fillStyle = '#95a5a6';
+  c.fillText('Tomogichi Mood Tracker', cCanvas.width / 2, 40);
+  // Day numbers
+  c.textAlign = 'right';
+  c.font = '9px Courier New, monospace';
+  c.fillStyle = '#666';
+  for (var d = 1; d <= 31; d++) {
+    c.fillText(d, padX - 6, padY + (d - 1) * (cellH + gap) + cellH / 2 + 3);
+  }
+  // Month labels + cells
+  c.textAlign = 'center';
+  for (var m = 0; m < 12; m++) {
+    c.fillStyle = '#AB47BC';
+    c.font = 'bold 9px Courier New, monospace';
+    c.fillText(MONTHS_SHORT[m], padX + m * (cellW + gap) + cellW / 2, padY - 8);
+    for (var day = 1; day <= DAYS_IN_MONTH[m]; day++) {
+      var iso = year + '-' + String(m+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+      var entry = moodByDate[iso];
+      var color = entry ? (MOOD_COLOR_SCALE[entry.num] || '#333') : 'rgba(128,128,128,.12)';
+      c.fillStyle = color;
+      c.beginPath();
+      c.roundRect(padX + m * (cellW + gap), padY + (day - 1) * (cellH + gap), cellW, cellH, 3);
+      c.fill();
+    }
+  }
+  // Legend
+  var legendY = padY + 31 * (cellH + gap) + 16;
+  c.textAlign = 'center';
+  c.font = '9px Courier New, monospace';
+  var moodLabels = ['😢','😟','😐','😊','😄'];
+  for (var lv = 0; lv < 5; lv++) {
+    var lx = cCanvas.width / 2 - 60 + lv * 30;
+    c.fillStyle = MOOD_COLOR_SCALE[lv + 1];
+    c.fillRect(lx, legendY, 12, 12);
+    c.fillStyle = '#e0e0e0';
+    c.fillText(moodLabels[lv], lx + 6, legendY + 24);
+  }
+  // Download
+  var link = document.createElement('a');
+  link.download = 'mood-poster-' + year + '.png';
+  link.href = cCanvas.toDataURL('image/png');
+  link.click();
+  showToast('Poster downloaded');
 }
 
 // ── Utilities ──
