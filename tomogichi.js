@@ -1249,6 +1249,33 @@ function renderStats() {
     }
     html += '<div style="font-size:.85em;color:var(--blue);margin-top:8px">Total this week: ' + (totalWeek / 60).toFixed(1) + 'h</div>';
     el.innerHTML = html;
+  } else if (activeStatsTab === 'tapestry') {
+    var tapeHtml = '<div class="section-title">Year in Color <button class="shop-buy" onclick="downloadPoster()" style="margin-left:auto;font-size:.7em">📥 Download Poster</button></div>';
+    tapeHtml += '<div class="mood-calendar" id="mood-calendar"></div>';
+    tapeHtml += '<div class="mood-calendar-legend">';
+    var moodColorScale = {1:'#EF5350',2:'#FF9800',3:'#FFC107',4:'#4CAF50',5:'#00E5FF'};
+    for (var lv = 1; lv <= 5; lv++) {
+      tapeHtml += '<span class="hm-cell level-' + lv + '" style="width:14px;height:14px;font-size:.6em;background:' + moodColorScale[lv] + '">' + lv + '</span>';
+    }
+    tapeHtml += '</div>';
+    var moods = (state.master.mood_log || []).slice(-20).reverse();
+    tapeHtml += '<div class="section-title">Mood History</div>';
+    if (moods.length === 0) tapeHtml += '<div style="color:var(--txt-dim);font-size:.85em">No moods logged</div>';
+    else tapeHtml += moods.map(function(m) {
+      var emoji = (MOOD_WORDS.find(function(mw) { return mw.word === m.word; }) || {}).emoji || '';
+      return '<div style="font-size:.85em;padding:2px 0">' + (m.time || '').substring(0, 16).replace('T', ' ') + ' ' + emoji + ' ' + m.word + '</div>';
+    }).join('');
+    tapeHtml += '<div class="section-title">Diary</div>';
+    var diary = state.master.diary_log || [];
+    if (diary.length > 0) {
+      tapeHtml += diary.slice(0, 5).map(function(d) {
+        return '<div style="font-size:.85em;padding:4px 0;border-bottom:1px solid var(--border)"><div style="color:var(--txt-dim);font-size:.85em">' + (d.time || '').substring(0, 16).replace('T',' ') + '</div><div>' + escapeHtml(d.text || '') + '</div></div>';
+      }).join('');
+    }
+    tapeHtml += '<textarea id="diary-input" placeholder="What happened today?" style="background:var(--bg);color:var(--txt);border:1px solid var(--border);border-radius:6px;padding:8px;width:100%;min-height:60px;font-family:inherit;font-size:.8em;margin-top:4px"></textarea>' +
+      '<button class="shop-buy" onclick="addDiary()">Save Entry</button>';
+    el.innerHTML = tapeHtml;
+    setTimeout(renderMoodCalendar, 0);
   }
 }
 
